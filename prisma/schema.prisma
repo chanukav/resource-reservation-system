@@ -1,0 +1,111 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------------------------------------------
+// ENUMS
+// Native PostgreSQL ENUM types for rigid type safety
+// ----------------------------------------------------
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ResourceStatus {
+  AVAILABLE
+  MAINTENANCE
+  DECOMMISSIONED
+}
+
+enum ReservationStatus {
+  PENDING     // Awaiting admin approval (if required)
+  APPROVED    // Confirmed reservation
+  REJECTED    // Declined by admin
+  CANCELLED   // Cancelled by user or admin
+  COMPLETED   // Finished time window
+}
+
+// ----------------------------------------------------
+// MODELS
+// ----------------------------------------------------
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String
+  passwordHash String
+  role         Role          @default(USER)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  reservations Reservation[]
+
+  @@map("users")
+}
+
+model ResourceCategory {
+  id          String     @id @default(cuid())
+  name        String     @unique // e.g. "Meeting Rooms", "Lab Equipment", "Projectors"
+  description String?
+  createdAt   DateTime   @default(now())
+
+  resources   Resource[]
+
+  @@map("resource_categories")
+}
+
+model Resource {
+  id               String           @id @default(cuid())
+  name             String
+  description      String?
+  location         String?          // e.g. "Building A - Room 204"
+  capacity         Int              @default(1) // Number of people or quantity
+  imageUrl         String?
+  status           ResourceStatus   @default(AVAILABLE)
+  requiresApproval Boolean          @default(false)
+
+  categoryId       String
+  category         ResourceCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  reservations     Reservation[]
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@map("resources")
+}
+
+model Reservation {
+  id              String            @id @default(cuid())
+  title           String            // Brief summary, e.g. "Team Sprint Planning"
+  description     String?
+  
+  startTime       DateTime
+  endTime         DateTime
+  
+  status          ReservationStatus @default(PENDING)
+  rejectionReason String?
+
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  resourceId      String
+  resource        Resource          @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Performance Indexes:
+  // Crucial for the reservation conflict detection query:
+  // "Find existing reservations for resourceId where startTime < newEndTime AND endTime > newStartTime"
+  @@index([resourceId, startTime, endTime])
+  @@index([userId])
+  @@index([status])
+  @@map("reservations")
+}
