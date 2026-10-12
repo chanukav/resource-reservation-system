@@ -234,12 +234,14 @@ export function AdminDashboard({
 
         {activeTab === "RESOURCES" && (
           <Dialog open={newResourceOpen} onOpenChange={setNewResourceOpen}>
-            <DialogTrigger>
-              <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white">
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Add Resource
-              </Button>
-            </DialogTrigger>
+            <DialogTrigger
+              render={
+                <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Add Resource
+                </Button>
+              }
+            />
             <DialogContent className="sm:max-w-[480px]">
               <form onSubmit={handleCreateResource}>
                 <DialogHeader>

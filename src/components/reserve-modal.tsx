@@ -92,15 +92,17 @@ export function ReserveModal({ resource, triggerButton }: ReserveModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger>
-        {triggerButton ? (
-          triggerButton
-        ) : (
-          <Button disabled={!isAvailable} className="w-full">
-            {isAvailable ? "Reserve Resource" : "Unavailable"}
-          </Button>
-        )}
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          triggerButton ? (
+            (triggerButton as React.ReactElement)
+          ) : (
+            <Button disabled={!isAvailable} className="w-full">
+              {isAvailable ? "Reserve Resource" : "Unavailable"}
+            </Button>
+          )
+        }
+      />
 
       <DialogContent className="sm:max-w-[480px]">
         <form onSubmit={handleSubmit}>
