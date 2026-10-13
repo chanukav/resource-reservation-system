@@ -11,6 +11,14 @@ import {
   formatOrgTimeRange,
 } from "@/lib/date-utils";
 import { canTransitionReservation } from "@/lib/reservation-state";
+import {
+  createReservationSchema,
+  editReservationSchema,
+  cancelReservationSchema,
+  updateReservationStatusSchema,
+  formatZodError,
+  sanitizeServerError,
+} from "@/lib/validations";
 
 function safeRevalidatePath(path: string) {
   try {
@@ -62,29 +70,32 @@ export async function createReservationAction(formData: CreateReservationInput):
       return { success: false, error: "Authentication required to place reservations." };
     }
 
-    const { resourceId, title, description } = formData;
-
-    if (!title || !title.trim()) {
-      return { success: false, error: "Reservation title or purpose is required." };
+    // 1. Runtime schema validation with Zod
+    const parsed = createReservationSchema.safeParse(formData);
+    if (!parsed.success) {
+      return { success: false, error: formatZodError(parsed.error) };
     }
+    const validatedData = parsed.data;
 
-    // 1. Resolve start and end instants in Asia/Colombo
+    const { resourceId, title, description } = validatedData;
+
+    // 2. Resolve start and end instants in Asia/Colombo
     let start: Date;
     let end: Date;
 
     try {
-      if (formData.startDate && formData.startTime && formData.endTime) {
-        const parsed = parseOrgDateTimeRange({
-          startDate: formData.startDate,
-          startTime: formData.startTime,
-          endDate: formData.endDate || formData.startDate,
-          endTime: formData.endTime,
+      if (validatedData.startDate && validatedData.startTime && validatedData.endTime) {
+        const parsedRange = parseOrgDateTimeRange({
+          startDate: validatedData.startDate,
+          startTime: validatedData.startTime,
+          endDate: validatedData.endDate || validatedData.startDate,
+          endTime: validatedData.endTime,
         });
-        start = parsed.start;
-        end = parsed.end;
-      } else if (formData.startDateTime && formData.endDateTime) {
-        start = new Date(formData.startDateTime);
-        end = new Date(formData.endDateTime);
+        start = parsedRange.start;
+        end = parsedRange.end;
+      } else if (validatedData.startDateTime && validatedData.endDateTime) {
+        start = new Date(validatedData.startDateTime);
+        end = new Date(validatedData.endDateTime);
       } else {
         return { success: false, error: "Please provide valid reservation date and time." };
       }
@@ -95,13 +106,13 @@ export async function createReservationAction(formData: CreateReservationInput):
       };
     }
 
-    // 2. Validate business rules on timings
+    // 3. Validate business rules on timings
     const timingValidation = validateReservationTiming(start, end);
     if (!timingValidation.valid) {
       return { success: false, error: timingValidation.error };
     }
 
-    // 3. Verify target resource exists and operational status
+    // 4. Verify target resource exists and operational status
     const resource = await prisma.resource.findUnique({
       where: { id: resourceId },
     });
@@ -117,7 +128,7 @@ export async function createReservationAction(formData: CreateReservationInput):
       };
     }
 
-    // 4. Double-Booking Conflict Detection
+    // 5. Double-Booking Conflict Detection
     // Query condition: existing.startTime < new.endTime AND existing.endTime > new.startTime
     const conflictingBooking = await prisma.reservation.findFirst({
       where: {
@@ -141,7 +152,7 @@ export async function createReservationAction(formData: CreateReservationInput):
       };
     }
 
-    // 5. High-demand items requiring approval start in PENDING, otherwise APPROVED
+    // 6. High-demand items requiring approval start in PENDING, otherwise APPROVED
     const initialStatus = resource.requiresApproval
       ? ReservationStatus.PENDING
       : ReservationStatus.APPROVED;
@@ -170,25 +181,13 @@ export async function createReservationAction(formData: CreateReservationInput):
       data: reservation,
     };
   } catch (error: unknown) {
-    const errString = error instanceof Error ? error.message : String(error);
-
-    // Detect PostgreSQL exclusion constraint violation (code 23P01)
-    if (
-      errString.includes("no_overlapping_active_reservations") ||
-      errString.includes("exclusion constraint") ||
-      errString.includes("23P01")
-    ) {
-      return {
-        success: false,
-        error:
-          "Schedule Conflict: A simultaneous booking was confirmed for this overlapping time slot. Please select another time window.",
-      };
-    }
-
     console.error("createReservationAction error:", error);
     return {
       success: false,
-      error: "An unexpected server error occurred while creating your reservation.",
+      error: sanitizeServerError(
+        error,
+        "An unexpected server error occurred while creating your reservation."
+      ),
     };
   }
 }
@@ -204,10 +203,14 @@ export async function editReservationAction(formData: EditReservationInput): Pro
       return { success: false, error: "Authentication required to modify reservations." };
     }
 
-    const { reservationId } = formData;
-    if (!reservationId) {
-      return { success: false, error: "Reservation ID is required." };
+    // 1. Runtime schema validation with Zod
+    const parsed = editReservationSchema.safeParse(formData);
+    if (!parsed.success) {
+      return { success: false, error: formatZodError(parsed.error) };
     }
+    const validatedData = parsed.data;
+
+    const { reservationId } = validatedData;
 
     const reservation = await prisma.reservation.findUnique({
       where: { id: reservationId },
@@ -225,7 +228,8 @@ export async function editReservationAction(formData: EditReservationInput): Pro
 
     if (
       reservation.status === ReservationStatus.CANCELLED ||
-      reservation.status === ReservationStatus.REJECTED
+      reservation.status === ReservationStatus.REJECTED ||
+      reservation.status === ReservationStatus.COMPLETED
     ) {
       return {
         success: false,
@@ -244,18 +248,18 @@ export async function editReservationAction(formData: EditReservationInput): Pro
     let start = reservation.startTime;
     let end = reservation.endTime;
 
-    if (formData.startDate && formData.startTime && formData.endTime) {
-      const parsed = parseOrgDateTimeRange({
-        startDate: formData.startDate,
-        startTime: formData.startTime,
-        endDate: formData.endDate || formData.startDate,
-        endTime: formData.endTime,
+    if (validatedData.startDate && validatedData.startTime && validatedData.endTime) {
+      const parsedRange = parseOrgDateTimeRange({
+        startDate: validatedData.startDate,
+        startTime: validatedData.startTime,
+        endDate: validatedData.endDate || validatedData.startDate,
+        endTime: validatedData.endTime,
       });
-      start = parsed.start;
-      end = parsed.end;
-    } else if (formData.startDateTime && formData.endDateTime) {
-      start = new Date(formData.startDateTime);
-      end = new Date(formData.endDateTime);
+      start = parsedRange.start;
+      end = parsedRange.end;
+    } else if (validatedData.startDateTime && validatedData.endDateTime) {
+      start = new Date(validatedData.startDateTime);
+      end = new Date(validatedData.endDateTime);
     }
 
     // Validate business timing
@@ -288,10 +292,10 @@ export async function editReservationAction(formData: EditReservationInput): Pro
     const updated = await prisma.reservation.update({
       where: { id: reservation.id },
       data: {
-        title: formData.title?.trim() ?? reservation.title,
+        title: validatedData.title?.trim() ?? reservation.title,
         description:
-          formData.description !== undefined
-            ? formData.description.trim() || null
+          validatedData.description !== undefined
+            ? validatedData.description?.trim() || null
             : reservation.description,
         startTime: start,
         endTime: end,
@@ -308,22 +312,11 @@ export async function editReservationAction(formData: EditReservationInput): Pro
       data: updated,
     };
   } catch (error: unknown) {
-    const errString = error instanceof Error ? error.message : String(error);
-
-    if (
-      errString.includes("no_overlapping_active_reservations") ||
-      errString.includes("exclusion constraint") ||
-      errString.includes("23P01")
-    ) {
-      return {
-        success: false,
-        error:
-          "Schedule Conflict: A simultaneous booking was confirmed for this overlapping time slot. Please select another time window.",
-      };
-    }
-
     console.error("editReservationAction error:", error);
-    return { success: false, error: "Failed to update reservation." };
+    return {
+      success: false,
+      error: sanitizeServerError(error, "Failed to update reservation."),
+    };
   }
 }
 
@@ -338,8 +331,15 @@ export async function cancelReservationAction(reservationId: string): Promise<Ac
       return { success: false, error: "Authentication required." };
     }
 
+    // 1. Runtime schema validation with Zod
+    const parsed = cancelReservationSchema.safeParse({ reservationId });
+    if (!parsed.success) {
+      return { success: false, error: formatZodError(parsed.error) };
+    }
+    const validatedReservationId = parsed.data.reservationId;
+
     const reservation = await prisma.reservation.findUnique({
-      where: { id: reservationId },
+      where: { id: validatedReservationId },
     });
 
     if (!reservation) {
@@ -371,7 +371,7 @@ export async function cancelReservationAction(reservationId: string): Promise<Ac
     // Atomic conditional update to guard against concurrent transitions
     const updated = await prisma.reservation.updateMany({
       where: {
-        id: reservationId,
+        id: validatedReservationId,
         status: { in: [ReservationStatus.PENDING, ReservationStatus.APPROVED] },
         endTime: { gt: new Date() },
       },
@@ -392,7 +392,10 @@ export async function cancelReservationAction(reservationId: string): Promise<Ac
     return { success: true, message: "Reservation cancelled successfully." };
   } catch (error) {
     console.error("cancelReservationAction error:", error);
-    return { success: false, error: "Failed to cancel reservation." };
+    return {
+      success: false,
+      error: sanitizeServerError(error, "Failed to cancel reservation."),
+    };
   }
 }
 
@@ -415,15 +418,19 @@ export async function updateReservationStatusAction({
       return { success: false, error: "Administrator privileges required." };
     }
 
-    if (status !== ReservationStatus.APPROVED && status !== ReservationStatus.REJECTED) {
-      return {
-        success: false,
-        error: "Invalid target status. Administrator review only permits APPROVED or REJECTED.",
-      };
+    // 1. Runtime schema validation with Zod
+    const parsed = updateReservationStatusSchema.safeParse({
+      reservationId,
+      status,
+      rejectionReason,
+    });
+    if (!parsed.success) {
+      return { success: false, error: formatZodError(parsed.error) };
     }
+    const validatedData = parsed.data;
 
     const targetReservation = await prisma.reservation.findUnique({
-      where: { id: reservationId },
+      where: { id: validatedData.reservationId },
       include: { resource: true },
     });
 
@@ -432,23 +439,13 @@ export async function updateReservationStatusAction({
     }
 
     // Validate state transition
-    const transitionCheck = canTransitionReservation(targetReservation.status, status);
+    const transitionCheck = canTransitionReservation(targetReservation.status, validatedData.status);
     if (!transitionCheck.allowed) {
       return { success: false, error: transitionCheck.reason };
     }
 
-    // If REJECTED, require a non-empty, descriptive rejection reason (minimum 5 chars)
-    if (status === ReservationStatus.REJECTED) {
-      if (!rejectionReason || !rejectionReason.trim() || rejectionReason.trim().length < 5) {
-        return {
-          success: false,
-          error: "A descriptive rejection reason (minimum 5 characters) is required when rejecting a reservation.",
-        };
-      }
-    }
-
     // If APPROVED, recheck resource availability and conflicts
-    if (status === ReservationStatus.APPROVED) {
+    if (validatedData.status === ReservationStatus.APPROVED) {
       // 1. Recheck operational status of the resource
       if (targetReservation.resource.status !== "AVAILABLE") {
         return {
@@ -469,7 +466,7 @@ export async function updateReservationStatusAction({
       const conflictingBooking = await prisma.reservation.findFirst({
         where: {
           resourceId: targetReservation.resourceId,
-          id: { not: reservationId },
+          id: { not: validatedData.reservationId },
           status: ReservationStatus.APPROVED,
           startTime: { lt: targetReservation.endTime },
           endTime: { gt: targetReservation.startTime },
@@ -489,12 +486,15 @@ export async function updateReservationStatusAction({
     // Atomic conditional update to guard against concurrent admin actions
     const updated = await prisma.reservation.updateMany({
       where: {
-        id: reservationId,
+        id: validatedData.reservationId,
         status: ReservationStatus.PENDING,
       },
       data: {
-        status,
-        rejectionReason: status === ReservationStatus.REJECTED ? rejectionReason!.trim() : null,
+        status: validatedData.status,
+        rejectionReason:
+          validatedData.status === ReservationStatus.REJECTED
+            ? validatedData.rejectionReason!.trim()
+            : null,
       },
     });
 
@@ -511,24 +511,14 @@ export async function updateReservationStatusAction({
 
     return {
       success: true,
-      message: `Reservation marked as ${status.toLowerCase()}.`,
+      message: `Reservation marked as ${validatedData.status.toLowerCase()}.`,
     };
   } catch (error: unknown) {
-    const errString = error instanceof Error ? error.message : String(error);
-
-    if (
-      errString.includes("no_overlapping_active_reservations") ||
-      errString.includes("exclusion constraint") ||
-      errString.includes("23P01")
-    ) {
-      return {
-        success: false,
-        error: "Schedule Conflict: A simultaneous booking was confirmed for this overlapping time slot.",
-      };
-    }
-
     console.error("updateReservationStatusAction error:", error);
-    return { success: false, error: "Failed to update reservation status." };
+    return {
+      success: false,
+      error: sanitizeServerError(error, "Failed to update reservation status."),
+    };
   }
 }
 

@@ -9,6 +9,7 @@ import {
   createSignedSessionToken,
   COOKIE_NAME,
 } from "@/lib/auth";
+import { switchUserSchema, formatZodError } from "@/lib/validations";
 
 /**
  * Controlled Server Action for assessment evaluators.
@@ -16,10 +17,12 @@ import {
  * Arbitrary role injection (e.g. submitting role="ADMIN") is structurally impossible.
  */
 export async function switchUserAction(personaKey: DemoPersonaKey) {
-  const targetPersona = DEMO_PERSONAS[personaKey];
-  if (!targetPersona) {
-    throw new Error("Invalid persona requested. Privilege escalation blocked.");
+  const parsed = switchUserSchema.safeParse({ personaKey });
+  if (!parsed.success) {
+    throw new Error(formatZodError(parsed.error));
   }
+
+  const targetPersona = DEMO_PERSONAS[parsed.data.personaKey];
 
   // Fetch the authoritative seeded user from the database
   const user = await prisma.user.findUnique({

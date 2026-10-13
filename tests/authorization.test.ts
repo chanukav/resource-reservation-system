@@ -38,6 +38,7 @@ import {
   canTransitionReservation,
   PERMITTED_RESERVATION_TRANSITIONS,
 } from "../src/lib/reservation-state";
+import { sanitizeServerError } from "../src/lib/validations";
 import { ResourceStatus, ReservationStatus } from "@prisma/client";
 
 let totalTests = 0;
@@ -640,7 +641,137 @@ async function runSecurityTests() {
     where: { id: testResource.id },
   });
 
-  console.log(`\n🎉 All ${passedTests}/${totalTests} Security, Concurrency & Lifecycle Tests PASSED!`);
+  // ----------------------------------------------------
+  // GROUP 6: Runtime Server Validation (Zod) & Error Sanitization (Finding 7)
+  // ----------------------------------------------------
+  console.log("\nGroup 6: Runtime Server Validation (Zod) & Error Sanitization");
+  const testTargetResource = await prisma.resource.findFirst();
+
+  // 1. Title length bounds (min 3 chars)
+  const shortTitleAttempt = await createReservationAction({
+    resourceId: testTargetResource!.id,
+    title: "ab",
+    startDate: "2026-10-25",
+    startTime: "10:00",
+    endTime: "11:00",
+  });
+  assert(
+    shortTitleAttempt.success === false &&
+      shortTitleAttempt.error?.includes("at least 3 characters") === true,
+    "createReservationAction rejects title shorter than 3 characters"
+  );
+
+  // 2. Title length bounds (max 100 chars)
+  const longTitleAttempt = await createReservationAction({
+    resourceId: testTargetResource!.id,
+    title: "A".repeat(101),
+    startDate: "2026-10-25",
+    startTime: "10:00",
+    endTime: "11:00",
+  });
+  assert(
+    longTitleAttempt.success === false &&
+      longTitleAttempt.error?.includes("cannot exceed 100 characters") === true,
+    "createReservationAction rejects title exceeding 100 characters"
+  );
+
+  // 3. Empty / whitespace resource identifier
+  const emptyResourceIdAttempt = await createReservationAction({
+    resourceId: "   ",
+    title: "Valid Title",
+    startDate: "2026-10-25",
+    startTime: "10:00",
+    endTime: "11:00",
+  });
+  assert(
+    emptyResourceIdAttempt.success === false &&
+      emptyResourceIdAttempt.error?.includes("cannot be empty") === true,
+    "createReservationAction rejects whitespace/empty resourceId"
+  );
+
+  // 4. Resource creation: short name (<2 chars)
+  process.env.TEST_AUTH_AS = "ADMIN";
+  const shortResourceNameAttempt = await createResourceAction({
+    name: "A",
+    capacity: 10,
+    categoryId: testTargetResource!.categoryId,
+    requiresApproval: false,
+  });
+  assert(
+    shortResourceNameAttempt.success === false &&
+      shortResourceNameAttempt.error?.includes("at least 2 characters") === true,
+    "createResourceAction rejects resource name shorter than 2 characters"
+  );
+
+  // 5. Resource creation: zero / negative capacity
+  const zeroCapacityAttempt = await createResourceAction({
+    name: "Valid Boardroom",
+    capacity: 0,
+    categoryId: testTargetResource!.categoryId,
+    requiresApproval: false,
+  });
+  assert(
+    zeroCapacityAttempt.success === false &&
+      zeroCapacityAttempt.error?.includes("at least 1") === true,
+    "createResourceAction rejects capacity less than 1"
+  );
+
+  // 6. Resource creation: non-existent category
+  const invalidCategoryAttempt = await createResourceAction({
+    name: "Valid Boardroom",
+    capacity: 5,
+    categoryId: "non_existent_category_id_9999",
+    requiresApproval: false,
+  });
+  assert(
+    invalidCategoryAttempt.success === false &&
+      invalidCategoryAttempt.error?.includes("Selected category does not exist") === true,
+    "createResourceAction rejects non-existent categoryId"
+  );
+
+  // 7. Resource status update: invalid enum value
+  const invalidResourceStatusAttempt = await updateResourceStatusAction(
+    testTargetResource!.id,
+    "DELETED_STATUS" as any
+  );
+  assert(
+    invalidResourceStatusAttempt.success === false &&
+      invalidResourceStatusAttempt.error?.includes("Invalid status enum value") === true,
+    "updateResourceStatusAction rejects invalid resource status enum"
+  );
+
+  // 8. Reservation review: rejection reason shorter than 5 chars
+  const shortRejectionAttempt = await updateReservationStatusAction({
+    reservationId: "cmv_fake_res_id",
+    status: ReservationStatus.REJECTED,
+    rejectionReason: "No",
+  });
+  assert(
+    shortRejectionAttempt.success === false &&
+      shortRejectionAttempt.error?.includes("minimum 5 characters") === true,
+    "updateReservationStatusAction rejects rejection reason under 5 characters"
+  );
+
+  // 9. Cancel reservation: empty reservation ID
+  const emptyCancelIdAttempt = await cancelReservationAction("   ");
+  assert(
+    emptyCancelIdAttempt.success === false &&
+      emptyCancelIdAttempt.error?.includes("cannot be empty") === true,
+    "cancelReservationAction rejects empty reservationId"
+  );
+
+  // 10. Safe server error sanitization suppresses sensitive stack traces / DB details
+  const rawDbError = new Error("FATAL: connection to server at 127.0.0.1:5432 failed; password authentication failed for user postgres");
+  const sanitized = sanitizeServerError(rawDbError, "A safe fallback error occurred.");
+  assert(
+    sanitized === "A safe fallback error occurred." &&
+      !sanitized.includes("postgres") &&
+      !sanitized.includes("127.0.0.1"),
+    "sanitizeServerError suppresses internal database credentials and connection strings"
+  );
+  process.env.TEST_AUTH_AS = "";
+
+  console.log(`\n🎉 All ${passedTests}/${totalTests} Security, Concurrency, Lifecycle & Validation Tests PASSED!`);
 }
 
 runSecurityTests()

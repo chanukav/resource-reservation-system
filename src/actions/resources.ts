@@ -5,6 +5,12 @@ import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ResourceStatus } from "@prisma/client";
 import { ActionResult } from "./reservations";
+import {
+  createResourceSchema,
+  updateResourceStatusSchema,
+  formatZodError,
+  sanitizeServerError,
+} from "@/lib/validations";
 
 export async function createResourceAction(formData: {
   name: string;
@@ -13,6 +19,7 @@ export async function createResourceAction(formData: {
   capacity: number;
   categoryId: string;
   requiresApproval: boolean;
+  imageUrl?: string;
 }): Promise<ActionResult> {
   try {
     const user = await getCurrentUser();
@@ -20,24 +27,29 @@ export async function createResourceAction(formData: {
       return { success: false, error: "Administrator privileges required to create resources." };
     }
 
-    const { name, description, location, capacity, categoryId, requiresApproval } = formData;
-
-    if (!name || !name.trim()) {
-      return { success: false, error: "Resource name is required." };
+    // 1. Runtime schema validation with Zod
+    const parsed = createResourceSchema.safeParse(formData);
+    if (!parsed.success) {
+      return { success: false, error: formatZodError(parsed.error) };
     }
+    const validatedData = parsed.data;
 
-    if (!categoryId) {
-      return { success: false, error: "Category selection is required." };
+    // 2. Verify parent category exists
+    const category = await prisma.resourceCategory.findUnique({
+      where: { id: validatedData.categoryId },
+    });
+    if (!category) {
+      return { success: false, error: "Selected category does not exist." };
     }
 
     const newResource = await prisma.resource.create({
       data: {
-        name: name.trim(),
-        description: description?.trim() || null,
-        location: location?.trim() || null,
-        capacity: Number(capacity) || 1,
-        categoryId,
-        requiresApproval: Boolean(requiresApproval),
+        name: validatedData.name,
+        description: validatedData.description || null,
+        location: validatedData.location || null,
+        capacity: validatedData.capacity,
+        categoryId: validatedData.categoryId,
+        requiresApproval: validatedData.requiresApproval,
         status: ResourceStatus.AVAILABLE,
       },
     });
@@ -52,7 +64,10 @@ export async function createResourceAction(formData: {
     };
   } catch (error) {
     console.error("createResourceAction error:", error);
-    return { success: false, error: "Failed to create resource." };
+    return {
+      success: false,
+      error: sanitizeServerError(error, "Failed to create resource."),
+    };
   }
 }
 
@@ -66,9 +81,16 @@ export async function updateResourceStatusAction(
       return { success: false, error: "Administrator privileges required." };
     }
 
+    // 1. Runtime schema validation with Zod
+    const parsed = updateResourceStatusSchema.safeParse({ resourceId, status });
+    if (!parsed.success) {
+      return { success: false, error: formatZodError(parsed.error) };
+    }
+    const validatedData = parsed.data;
+
     await prisma.resource.update({
-      where: { id: resourceId },
-      data: { status },
+      where: { id: validatedData.resourceId },
+      data: { status: validatedData.status },
     });
 
     revalidatePath("/");
@@ -76,10 +98,13 @@ export async function updateResourceStatusAction(
 
     return {
       success: true,
-      message: `Resource status updated to ${status.toLowerCase()}.`,
+      message: `Resource status updated to ${validatedData.status.toLowerCase()}.`,
     };
   } catch (error) {
     console.error("updateResourceStatusAction error:", error);
-    return { success: false, error: "Failed to update resource status." };
+    return {
+      success: false,
+      error: sanitizeServerError(error, "Failed to update resource status."),
+    };
   }
 }
