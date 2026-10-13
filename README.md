@@ -15,7 +15,7 @@ A growing organization manages shared facilities and resources (meeting rooms, v
 ### The Solution
 **PrimeWave Reserve** eliminates scheduling friction with:
 - **Real-Time Catalog & Availability:** Live status pills (`Available`, `Maintenance`, `Decommissioned`) and upcoming booking counts.
-- **Zero-Double-Booking Guarantee:** Microsecond conflict-detection engine backed by compound database indexes.
+- **Zero-Double-Booking Guarantee:** Concurrency-safe reservation engine backed by PostgreSQL GiST exclusion constraints and application-level interval conflict detection.
 - **Dual-Tier Booking Workflows:** Immediate auto-confirmation for standard workspaces, and a managed approval queue for high-value equipment.
 - **Frictionless Evaluator Persona Switching:** Quick-toggle between **Intern User** and **Platform Administrator** in the top navigation bar.
 
@@ -101,7 +101,7 @@ const conflictingBooking = await prisma.reservation.findFirst({
 });
 ```
 
-To eliminate race conditions under interleaved concurrent requests at `READ COMMITTED` isolation, the invariant is physically enforced in the database via a **PostgreSQL GiST Exclusion Constraint**:
+To eliminate race conditions under interleaved concurrent requests at `READ COMMITTED` isolation, the invariant is physically enforced in the database via a **PostgreSQL GiST Exclusion Constraint** using `tstzrange`:
 ```sql
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
@@ -109,11 +109,14 @@ ALTER TABLE "reservations"
 ADD CONSTRAINT "no_overlapping_active_reservations"
 EXCLUDE USING gist (
   "resourceId" WITH =,
-  tsrange("startTime", "endTime", '[)') WITH &&
+  tstzrange("startTime", "endTime", '[)') WITH &&
 )
 WHERE ("status" IN ('PENDING', 'APPROVED'));
 ```
 Any simultaneous request attempting to insert an overlapping interval is stopped by the database engine with error `23P01` (`exclusion_violation`), which the application catches and converts into a user-friendly conflict message.
+
+> **Engineering Note on Indexing & Concurrency:**  
+> The composite B-tree index `@@index([resourceId, startTime, endTime])` accelerates candidate lookups in application queries. However, because interval overlap checks evaluate two distinct inequalities (`existing.startTime < newEnd AND existing.endTime > newStart`), B-trees cannot perform pure $O(\log N)$ point lookups on both columns simultaneously. The primary reason to implement the GiST exclusion constraint is **correctness under concurrency** (eliminating double-booking race conditions at the ACID level), not merely query speed. Detailed query execution plans and buffer benchmarks are documented in [docs/INDEXING_BENCHMARK.md](docs/INDEXING_BENCHMARK.md).
 
 ### 2. Next.js Server Actions over REST Boilerplate
 Rather than building separate Express controllers and client-side `axios` fetching hooks, mutations are executed via typed **Server Actions** (`src/actions/reservations.ts` and `src/actions/resources.ts`). This guarantees:

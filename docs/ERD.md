@@ -151,12 +151,16 @@ Booked time slots for shared resources. Stored with explicit microsecond timezon
    ```
    *Rationale:* Solves race conditions under high concurrent booking traffic across global and local timezones. Uses `tstzrange` with half-open intervals `'[)'` to ensure adjacent bookings (e.g., 10:00–11:00 followed by 11:00–12:00) are cleanly permitted, while true overlaps are physically rejected by the PostgreSQL storage engine with error `23P01 (exclusion_violation)`.
 
-2. **Compound Performance Index:**
+2. **Composite B-Tree Application Index:**
    ```sql
    CREATE INDEX "reservations_resourceId_startTime_endTime_idx" 
    ON "reservations" ("resourceId", "startTime", "endTime");
    ```
-   *Rationale:* Enables sub-millisecond application-level conflict lookups before attempting table inserts.
+   *Rationale & Query Planner Characteristics:*  
+   - Filters candidate reservations by exact equality on `resourceId` and establishes a starting boundary on `startTime`.
+   - *Technical Nuance on Range Complexity:* Because the double-booking check applies inequalities across two distinct columns (`existing.startTime < newEnd AND existing.endTime > newStart`), a B-tree cannot perform a pure $O(\log N)$ point search on `endTime`. The query engine scans matching `resourceId` and `startTime` index entries and evaluates `endTime` as a candidate filter condition.
+   - *Empirical Analysis:* In moderate-sized datasets (1,000+ rows), PostgreSQL's cost-based optimizer may favor reading cached shared buffers directly (`Seq Scan` over ~23 buffer pages) or a `Bitmap Index Scan`. Full query plans and buffer analysis are documented in [docs/INDEXING_BENCHMARK.md](file:///f:/Projects/resource-reservation-system/docs/INDEXING_BENCHMARK.md).
+   - *Separation of Concerns:* The B-tree optimizes application read paths, whereas the GiST exclusion constraint guarantees **correctness under concurrency** (preventing race conditions at the ACID storage engine level).
 
 2. **User Dashboard Index:**
    ```sql

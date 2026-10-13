@@ -101,9 +101,9 @@ model Reservation {
   createdAt       DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime          @updatedAt @db.Timestamptz(3)
 
-  // Performance Indexes:
-  // Crucial for the reservation conflict detection query:
-  // "Find existing reservations for resourceId where startTime < newEndTime AND endTime > newStartTime"
+  // Composite B-Tree index optimizing queries that filter by resourceId and scan startTime.
+  // Note: Two-sided interval overlap queries (startTime < end AND endTime > start) scan candidate
+  // keys; concurrency correctness under race conditions is guaranteed by the GiST exclusion constraint.
   @@index([resourceId, startTime, endTime])
   @@index([userId])
   @@index([status])
