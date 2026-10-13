@@ -186,14 +186,32 @@ Reservation status transitions follow a rigid, validated state machine ([src/lib
 
 ---
 
-## 6. Seed Demo Personas for Evaluation
+---
 
-To test all workflows quickly, use the persona switcher in the navigation bar or test with these seeded credentials:
+## 6. Authentication System & User Management
 
-| Persona | Email | Password | Role | Permissions |
-| :--- | :--- | :--- | :--- | :--- |
-| **Platform Administrator** | `admin@primewave.com` | `Admin@123` | `ADMIN` | Approve/Reject requests, add facilities, change operational status. |
-| **Engineering Intern** | `intern@primewave.com` | `Intern@123` | `USER` | Browse catalog, book facilities/gear, track & cancel personal reservations. |
+PrimeWave Reserve provides an enterprise authentication system with role-based access control (RBAC):
+
+### 1. Dedicated Login Page (`/login`)
+- **Credentials:** Form authentication using PBKDF2-SHA512 password verification.
+- **Session Security:** Cryptographically signed session cookies (HMAC-SHA256) marked `httpOnly`, `sameSite: lax`.
+- **Evaluator Quick-Fill:** One-click demo login buttons for instant evaluation.
+
+| Role | Seeded Email | Password | Access Privileges |
+| :--- | :--- | :--- | :--- |
+| **Platform Administrator** | `admin@primewave.com` | `Admin@123` | **Full access**: Approve/reject bookings, manage resources, and full User Management (create users, promote/demote roles, delete accounts). |
+| **Engineering Intern** | `intern@primewave.com` | `Intern@123` | **User access**: Browse catalog, book resources, track & cancel personal reservations. **Admin console is completely blocked (403 Forbidden).** |
+
+### 2. User Management (Admin Only)
+Only administrators have access to user management in the **Admin Console** under the **User Management** tab:
+- **Directory**: View all registered users, their roles, join dates, and lifetime reservation counts.
+- **Provisioning**: Create new enterprise users with temporary passwords and designated roles (`USER` or `ADMIN`).
+- **Role Assignment**: Promote members to `ADMIN` or demote administrators to `USER`.
+- **Safety Invariants**:
+  - Administrators cannot demote themselves.
+  - Administrators cannot delete their own active accounts.
+  - The system prevents deleting or demoting the last remaining administrator.
+  - Regular `USER` accounts receive a strict `403 Forbidden` if attempting to access `/admin` or execute administrative Server Actions.
 
 ---
 
@@ -206,17 +224,21 @@ To test all workflows quickly, use the persona switcher in the navigation bar or
 │   └── seed.ts           # Demo data seed script
 ├── src/
 │   ├── actions/          # Server Actions (Mutations & conflict checking)
+│   │   ├── auth.ts       # Login, logout, session management
 │   │   ├── reservations.ts
-│   │   └── resources.ts
+│   │   ├── resources.ts
+│   │   └── users.ts      # Administrator User Management (Create, Role, Delete)
 │   ├── app/              # Next.js App Router pages
-│   │   ├── admin/        # Administrator Management Hub
+│   │   ├── admin/        # Administrator Management Hub (RBAC-protected)
+│   │   ├── login/        # Dedicated enterprise login page
 │   │   ├── reservations/ # User's personal reservation tracking
 │   │   ├── layout.tsx    # Root application shell with Navbar and Sonner toaster
 │   │   └── page.tsx      # Resource catalog and live KPI dashboard
 │   ├── components/       # Reusable Client & Server components
 │   │   ├── ui/           # shadcn/ui accessible primitives
-│   │   ├── admin-dashboard.tsx
-│   │   ├── navbar.tsx
+│   │   ├── admin-dashboard.tsx # Hub with Pending, Bookings, Resources & Users tabs
+│   │   ├── login-form.tsx      # Interactive sign-in form with demo quick-fill
+│   │   ├── navbar.tsx          # Dynamic navigation with user profile & sign out
 │   │   ├── reserve-modal.tsx
 │   │   ├── resource-catalog.tsx
 │   │   └── user-reservations-list.tsx

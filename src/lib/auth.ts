@@ -99,13 +99,9 @@ export async function getCurrentUser(): Promise<SafeUser | null> {
       verifiedUserId = await verifySignedSessionToken(sessionCookie);
     }
 
-    // If no valid session exists, default to the seeded Intern account
+    // If no valid session exists, visitor is unauthenticated
     if (!verifiedUserId) {
-      const defaultUser = await prisma.user.findUnique({
-        where: { email: DEMO_PERSONAS.INTERN.email },
-        select: { id: true, name: true, email: true, role: true },
-      });
-      return defaultUser;
+      return null;
     }
 
     // Query authoritative user and role from PostgreSQL

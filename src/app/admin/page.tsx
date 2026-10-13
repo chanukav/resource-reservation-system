@@ -4,42 +4,52 @@ import {
   AdminDashboard,
   AdminReservationItem,
   AdminResourceItem,
+  AdminUserItem,
 } from "@/components/admin-dashboard";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { switchUserAction } from "@/actions/auth";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+
+export const metadata = {
+  title: "Admin Management Hub | PrimeWave Reserve",
+  description: "Enterprise administration console for managing reservations, resources, and user accounts.",
+};
 
 export default async function AdminPage() {
   const currentUser = await getCurrentUser();
 
-  // If currently browsing as regular user, provide an instant evaluator shortcut
-  if (currentUser?.role !== "ADMIN") {
+  // If unauthenticated, redirect to login page
+  if (!currentUser) {
+    redirect("/login?redirect=/admin");
+  }
+
+  // Strict RBAC: If not an administrator, access is strictly forbidden
+  if (currentUser.role !== "ADMIN") {
     return (
-      <div className="container mx-auto max-w-xl px-4 py-20 text-center space-y-4">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
-          <ShieldAlert className="h-6 w-6" />
+      <div className="container mx-auto max-w-lg px-4 py-24 text-center space-y-5">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/10 text-destructive border border-destructive/20 shadow-xs">
+          <ShieldAlert className="h-7 w-7" />
         </div>
-        <div className="space-y-1.5">
-          <h2 className="text-xl font-bold tracking-tight text-foreground">
-            Administrator Access Required
-          </h2>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            You are currently browsing as <strong className="text-foreground">{currentUser?.name || "Intern User"}</strong> ({currentUser?.email}).
-            To evaluate the administrative approval and facility management workflow, switch to the Admin persona.
+        <div className="space-y-2">
+          <Badge variant="outline" className="text-destructive border-destructive/30 px-2.5 py-0.5 text-xs font-semibold">
+            403 Forbidden
+          </Badge>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Access Denied
+          </h1>
+          <p className="text-xs text-muted-foreground leading-relaxed max-w-sm mx-auto">
+            You are currently signed in as <strong className="text-foreground">{currentUser.name}</strong> ({currentUser.email}) with the <strong className="text-foreground">{currentUser.role}</strong> role. Regular users cannot access the administration console, manage facilities, or configure user permissions.
           </p>
         </div>
-
-        <form
-          action={async () => {
-            "use server";
-            await switchUserAction("ADMIN");
-          }}
-        >
-          <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs">
-            <ShieldCheck className="h-4 w-4 mr-1.5" />
-            Switch to Admin Persona (admin@primewave.com)
-          </Button>
-        </form>
+        <div className="pt-2">
+          <Link href="/">
+            <Button variant="outline" size="sm" className="text-xs">
+              Return to Resource Catalog
+            </Button>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -81,6 +91,21 @@ export default async function AdminPage() {
     orderBy: { name: "asc" },
   });
 
+  // Fetch all registered users
+  const rawUsers = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      createdAt: true,
+      _count: {
+        select: { reservations: true },
+      },
+    },
+    orderBy: [{ role: "asc" }, { name: "asc" }],
+  });
+
   const serializedReservations: AdminReservationItem[] = rawReservations.map((r) => ({
     id: r.id,
     title: r.title,
@@ -107,6 +132,15 @@ export default async function AdminPage() {
     _count: res._count,
   }));
 
+  const serializedUsers: AdminUserItem[] = rawUsers.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    createdAt: u.createdAt.toISOString(),
+    _count: u._count,
+  }));
+
   const pendingCount = serializedReservations.filter((r) => r.status === "PENDING").length;
 
   return (
@@ -122,7 +156,7 @@ export default async function AdminPage() {
             </h1>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Review pending reservations, resolve scheduling bottlenecks, and configure organization resources.
+            Review pending reservations, manage organization facilities, and administer enterprise user accounts.
           </p>
         </div>
 
@@ -138,6 +172,8 @@ export default async function AdminPage() {
         reservations={serializedReservations}
         resources={serializedResources}
         categories={categories}
+        users={serializedUsers}
+        currentAdminId={currentUser.id}
       />
     </div>
   );

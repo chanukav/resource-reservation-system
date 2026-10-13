@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { switchUserAction } from "@/actions/auth";
+import { usePathname, useRouter } from "next/navigation";
+import { logoutAction } from "@/actions/auth";
 import type { SafeUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +10,11 @@ import {
   LayoutGrid,
   CalendarDays,
   ShieldCheck,
-  UserCheck,
   Building2,
+  LogOut,
+  LogIn,
+  User,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTransition } from "react";
@@ -23,12 +26,15 @@ interface NavbarProps {
 
 export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const handleRoleSwitch = (personaKey: "INTERN" | "ADMIN", roleName: string) => {
+  const handleSignOut = () => {
     startTransition(async () => {
-      await switchUserAction(personaKey);
-      toast.success(`Switched active persona to ${roleName}`);
+      await logoutAction();
+      toast.success("Signed out successfully");
+      router.push("/login");
+      router.refresh();
     });
   };
 
@@ -37,20 +43,31 @@ export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
       href: "/",
       label: "Browse Resources",
       icon: LayoutGrid,
+      adminOnly: false,
     },
     {
       href: "/reservations",
       label: "My Reservations",
       icon: CalendarDays,
+      adminOnly: false,
+      authRequired: true,
     },
     {
       href: "/admin",
-      label: "Admin Management",
+      label: "Admin Console",
       icon: ShieldCheck,
       badge: pendingCount > 0 ? pendingCount : null,
       adminOnly: true,
     },
   ];
+
+  // Strictly filter links: Admin link only shown to ADMIN role
+  const visibleLinks = navLinks.filter((link) => {
+    if (link.adminOnly && currentUser?.role !== "ADMIN") {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -73,7 +90,7 @@ export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
 
           {/* Navigation Links */}
           <nav className="hidden md:flex items-center gap-1 pl-4">
-            {navLinks.map((link) => {
+            {visibleLinks.map((link) => {
               const Icon = link.icon;
               const isActive = pathname === link.href;
 
@@ -100,35 +117,67 @@ export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
           </nav>
         </div>
 
-        {/* Persona Switcher / Active User Banner */}
+        {/* Authentication & User Profile */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-lg border border-border/80 bg-muted/40 p-1">
-            <Button
-              size="sm"
-              variant={currentUser?.role === "USER" ? "default" : "ghost"}
-              className="h-7 text-xs px-2.5"
-              disabled={isPending}
-              onClick={() => handleRoleSwitch("INTERN", "Engineering Intern (USER)")}
-            >
-              <UserCheck className="h-3.5 w-3.5 mr-1" />
-              Intern User
-            </Button>
-            <Button
-              size="sm"
-              variant={currentUser?.role === "ADMIN" ? "default" : "ghost"}
-              className="h-7 text-xs px-2.5"
-              disabled={isPending}
-              onClick={() => handleRoleSwitch("ADMIN", "Platform Admin (ADMIN)")}
-            >
-              <ShieldCheck className="h-3.5 w-3.5 mr-1" />
-              Admin
-            </Button>
-          </div>
+          {currentUser ? (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5 pl-2 border-l border-border/60">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                  <User className="h-4 w-4" />
+                </div>
+                <div className="hidden sm:flex flex-col items-start leading-tight">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-foreground">
+                      {currentUser.name}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={`text-[9px] px-1 py-0 h-4 font-semibold ${
+                        currentUser.role === "ADMIN"
+                          ? "border-emerald-500/40 text-emerald-600 bg-emerald-500/5"
+                          : "border-blue-500/40 text-blue-600 bg-blue-500/5"
+                      }`}
+                    >
+                      {currentUser.role}
+                    </Badge>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground">
+                    {currentUser.email}
+                  </span>
+                </div>
+              </div>
 
-          <div className="hidden lg:flex flex-col items-end text-xs">
-            <span className="font-medium text-foreground">{currentUser?.name || "Guest"}</span>
-            <span className="text-muted-foreground text-[11px]">{currentUser?.email}</span>
-          </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                disabled={isPending}
+                className="h-8 px-2.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                title="Sign Out"
+              >
+                {isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <>
+                    <LogOut className="h-3.5 w-3.5 sm:mr-1.5" />
+                    <span className="hidden sm:inline">Sign Out</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link href="/login">
+                <Button
+                  size="sm"
+                  className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <LogIn className="h-3.5 w-3.5 mr-1.5" />
+                  Sign In
+                </Button>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </header>

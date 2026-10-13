@@ -1,25 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { UserReservationsList, UserReservationItem } from "@/components/user-reservations-list";
-import { CalendarDays, AlertTriangle } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { redirect } from "next/navigation";
 
 export default async function MyReservationsPage() {
   const currentUser = await getCurrentUser();
 
   if (!currentUser) {
-    return (
-      <div className="container mx-auto max-w-4xl px-4 py-16 text-center">
-        <div className="rounded-full bg-amber-500/10 p-3 text-amber-600 inline-block mb-3">
-          <AlertTriangle className="h-6 w-6" />
-        </div>
-        <h2 className="text-lg font-semibold text-foreground">Sign In Required</h2>
-        <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-          Please select a persona in the top navigation bar to view personal reservations.
-        </p>
-      </div>
-    );
+    redirect("/login?redirect=/reservations");
   }
 
   const rawReservations = await prisma.reservation.findMany({
