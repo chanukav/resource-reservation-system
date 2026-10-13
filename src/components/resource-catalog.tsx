@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   CheckCircle,
 } from "lucide-react";
+import { formatOrgTime } from "@/lib/date-utils";
 
 export type SerializedResource = {
   id: string;
@@ -125,7 +126,15 @@ export function ResourceCatalog({ resources, categories }: ResourceCatalogProps)
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
           {filteredResources.map((resource) => {
-            const isAvailable = resource.status === "AVAILABLE";
+            const isOperational = resource.status === "AVAILABLE";
+            const now = new Date();
+            const currentActiveBooking = resource.reservations.find(
+              (res) =>
+                (res.status === "APPROVED" || res.status === "PENDING") &&
+                new Date(res.startTime) <= now &&
+                new Date(res.endTime) > now
+            );
+            const isOccupiedNow = Boolean(currentActiveBooking);
             const upcomingCount = resource.reservations.length;
 
             return (
@@ -138,24 +147,44 @@ export function ResourceCatalog({ resources, categories }: ResourceCatalogProps)
                     <Badge variant="secondary" className="text-[11px] font-medium bg-muted">
                       {resource.category.name}
                     </Badge>
-                    <div className="flex items-center gap-1.5">
-                      {isAvailable ? (
+                    <div className="flex flex-col items-end gap-1">
+                      {/* Operational Status (Fleet readiness) */}
+                      {isOperational ? (
                         <Badge
                           variant="outline"
-                          className="border-emerald-500/30 text-emerald-600 bg-emerald-500/10 text-[11px] font-medium"
+                          className="border-slate-300 dark:border-slate-700 text-muted-foreground bg-muted/30 text-[10px] font-medium"
                         >
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Available
+                          Operational
                         </Badge>
                       ) : (
                         <Badge
                           variant="outline"
-                          className="border-amber-500/30 text-amber-600 bg-amber-500/10 text-[11px] font-medium"
+                          className="border-amber-500/30 text-amber-600 bg-amber-500/10 text-[10px] font-medium"
                         >
                           <ShieldAlert className="h-3 w-3 mr-1" />
-                          {resource.status}
+                          {resource.status === "MAINTENANCE" ? "In Maintenance" : "Decommissioned"}
                         </Badge>
                       )}
+
+                      {/* Real-Time Occupancy Indicator */}
+                      {isOperational &&
+                        (isOccupiedNow ? (
+                          <Badge
+                            variant="outline"
+                            className="border-blue-500/30 text-blue-600 bg-blue-500/10 text-[10px] font-medium"
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse mr-1" />
+                            Occupied Now
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="border-emerald-500/30 text-emerald-600 bg-emerald-500/10 text-[10px] font-medium"
+                          >
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Vacant Now
+                          </Badge>
+                        ))}
                     </div>
                   </div>
 
@@ -191,9 +220,11 @@ export function ResourceCatalog({ resources, categories }: ResourceCatalogProps)
                     <div className="flex items-center gap-1 text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       <span>
-                        {upcomingCount > 0
+                        {isOccupiedNow
+                          ? `Occupied until ${formatOrgTime(currentActiveBooking!.endTime)}`
+                          : upcomingCount > 0
                           ? `${upcomingCount} upcoming booking${upcomingCount > 1 ? "s" : ""}`
-                          : "No current bookings"}
+                          : "Free for booking"}
                       </span>
                     </div>
                     {resource.requiresApproval ? (

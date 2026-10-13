@@ -34,11 +34,11 @@
 - **What to show on screen:**
   - Click on category pills: *All Resources*, *Meeting & Conference Rooms*, *Hardware & Media Equipment*, *Workstations & Labs*.
   - Type in the search box (e.g., `"Camera"`, `"Boardroom"`, `"Floor 2"`).
-  - Point out resource metadata: status badges (`Available` vs `Maintenance`), seating capacity, location, and the auto-approval vs admin review indicators.
+  - Point out resource metadata: operational readiness badges (`Operational` vs `In Maintenance`), real-time occupancy indicators (`Vacant Now` vs `Occupied Now`), seating capacity, location, and the auto-approval vs admin review indicators.
 - **What to say:**
-  > *"On the homepage, users are immediately greeted with live organizational metrics: total resources, available assets, and active bookings.*
+  > *"On the homepage, users are immediately greeted with live organizational metrics that clearly distinguish operational fleet readiness from real-time occupancy: operational assets, currently vacant facilities, active ongoing sessions, and the scheduled queue.*
   >
-  > *Users can instantly filter through categories or search by name, specifications, or room location with zero latency. Each card displays critical real-time information—such as capacity, location, operational state, and whether the resource requires admin signoff."*
+  > *Users can instantly filter through categories or search by name, specifications, or room location with zero latency. Each card displays critical real-time information—such as capacity, location, operational state, immediate occupancy status, and whether the resource requires admin signoff."*
 
 ---
 

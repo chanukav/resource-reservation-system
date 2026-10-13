@@ -509,9 +509,9 @@ export function AdminDashboard({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="AVAILABLE" className="text-xs text-emerald-600">Available</SelectItem>
-                      <SelectItem value="MAINTENANCE" className="text-xs text-amber-600">Maintenance</SelectItem>
-                      <SelectItem value="DECOMMISSIONED" className="text-xs text-destructive">Decommissioned</SelectItem>
+                      <SelectItem value="AVAILABLE" className="text-xs text-emerald-600">Operational (Ready for Booking)</SelectItem>
+                      <SelectItem value="MAINTENANCE" className="text-xs text-amber-600">In Maintenance</SelectItem>
+                      <SelectItem value="DECOMMISSIONED" className="text-xs text-destructive">Decommissioned (Offline)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

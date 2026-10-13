@@ -58,12 +58,35 @@ export default async function HomePage() {
     _count: c._count,
   }));
 
-  // KPI Metrics
+  // ----------------------------------------------------
+  // KPI Metrics: Clearly distinguishing Operational Status vs Real-Time Occupancy vs Scheduled Queue
+  // (Finding 8 Alignment)
+  // ----------------------------------------------------
   const totalResources = resources.length;
-  const availableCount = resources.filter((r) => r.status === "AVAILABLE").length;
+
+  // 1. Operational status: Can this resource be booked at all? (excludes Maintenance and Decommissioned)
+  const operationalResources = resources.filter((r) => r.status === "AVAILABLE");
+  const operationalCount = operationalResources.length;
+  const maintenanceCount = resources.filter((r) => r.status === "MAINTENANCE").length;
+
+  // 2. Real-time Occupancy: Which operational resources are physically in-use right now?
+  const currentlyOccupiedResources = operationalResources.filter((r) =>
+    r.reservations.some(
+      (res) =>
+        res.status === "APPROVED" &&
+        new Date(res.startTime) <= now &&
+        new Date(res.endTime) > now
+    )
+  );
+  const occupiedNowCount = currentlyOccupiedResources.length;
+
+  // 3. Immediately Vacant: Operational resources that have no active booking at the current moment
+  const vacantNowCount = operationalCount - occupiedNowCount;
+
+  // 4. Scheduled Sessions: Active/upcoming bookings in queue
   const activeBookingsCount = await prisma.reservation.count({
     where: {
-      status: "APPROVED",
+      status: { in: ["APPROVED", "PENDING"] },
       endTime: { gte: now },
     },
   });
@@ -88,44 +111,69 @@ export default async function HomePage() {
         </div>
 
         {/* Live Metric Badges */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4 border-t border-border/50 pt-6">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 sm:gap-4 border-t border-border/50 pt-6">
+          {/* 1. Operational Fleet */}
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600">
               <Building2 className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-lg font-bold text-foreground">{totalResources}</div>
-              <div className="text-xs text-muted-foreground">Total Resources</div>
+              <div className="text-lg font-bold text-foreground">
+                {operationalCount}
+                <span className="text-xs font-normal text-muted-foreground">/{totalResources}</span>
+              </div>
+              <div className="text-xs font-medium text-foreground">Operational Assets</div>
+              <div className="text-[10px] text-muted-foreground">
+                {maintenanceCount > 0 ? `${maintenanceCount} in maintenance` : "100% operational"}
+              </div>
             </div>
           </div>
 
+          {/* 2. Vacant Right Now */}
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-blue-500/10 p-2 text-blue-600">
+            <div className="rounded-lg bg-teal-500/10 p-2 text-teal-600">
               <CheckCircle2 className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-lg font-bold text-foreground">{availableCount}</div>
-              <div className="text-xs text-muted-foreground">Available Now</div>
+              <div className="text-lg font-bold text-foreground">{vacantNowCount}</div>
+              <div className="text-xs font-medium text-foreground">Vacant Right Now</div>
+              <div className="text-[10px] text-muted-foreground">Free for immediate booking</div>
             </div>
           </div>
 
+          {/* 3. Currently Occupied */}
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-blue-500/10 p-2 text-blue-600">
+              <CalendarCheck2 className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-lg font-bold text-foreground">{occupiedNowCount}</div>
+              <div className="text-xs font-medium text-foreground">In Use Right Now</div>
+              <div className="text-[10px] text-muted-foreground">Active session ongoing</div>
+            </div>
+          </div>
+
+          {/* 4. Scheduled Bookings */}
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-purple-500/10 p-2 text-purple-600">
               <CalendarCheck2 className="h-5 w-5" />
             </div>
             <div>
               <div className="text-lg font-bold text-foreground">{activeBookingsCount}</div>
-              <div className="text-xs text-muted-foreground">Active Bookings</div>
+              <div className="text-xs font-medium text-foreground">Scheduled Queue</div>
+              <div className="text-[10px] text-muted-foreground">Active & upcoming bookings</div>
             </div>
           </div>
 
+          {/* 5. Asset Categories */}
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-amber-500/10 p-2 text-amber-600">
               <Layers className="h-5 w-5" />
             </div>
             <div>
               <div className="text-lg font-bold text-foreground">{categories.length}</div>
-              <div className="text-xs text-muted-foreground">Categories</div>
+              <div className="text-xs font-medium text-foreground">Categories</div>
+              <div className="text-[10px] text-muted-foreground">Classified facility types</div>
             </div>
           </div>
         </div>
