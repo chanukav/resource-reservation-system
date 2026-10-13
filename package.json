@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "npx tsx prisma/seed.ts",
-    "test:auth": "npx tsx tests/authorization.test.ts"
+    "seed": "node tests/run-tests.js prisma/seed.ts",
+    "test:auth": "node tests/run-tests.js tests/authorization.test.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

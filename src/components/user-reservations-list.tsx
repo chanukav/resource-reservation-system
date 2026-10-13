@@ -15,7 +15,14 @@ import {
   AlertCircle,
   CheckCircle2,
   Loader2,
+  Globe,
 } from "lucide-react";
+import {
+  formatOrgDate,
+  formatOrgTimeRange,
+  ORGANIZATION_TIMEZONE,
+} from "@/lib/date-utils";
+import { EditReservationModal } from "@/components/edit-reservation-modal";
 
 export type UserReservationItem = {
   id: string;
@@ -112,6 +119,17 @@ export function UserReservationsList({ initialReservations }: UserReservationsLi
 
   return (
     <div className="space-y-6">
+      {/* Timezone Guarantee Banner */}
+      <div className="flex items-center justify-between rounded-lg bg-blue-500/10 px-4 py-2 text-xs text-blue-700 dark:text-blue-300 border border-blue-500/20">
+        <span className="flex items-center gap-1.5 font-medium">
+          <Globe className="h-4 w-4" />
+          Organizational Time Zone Guarantee
+        </span>
+        <span className="font-mono text-xs font-semibold">
+          {ORGANIZATION_TIMEZONE} (UTC+05:30)
+        </span>
+      </div>
+
       {/* Filter Tabs */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border/60 pb-3">
         {[
@@ -182,22 +200,25 @@ export function UserReservationsList({ initialReservations }: UserReservationsLi
                   </div>
 
                   {isUpcoming && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30 shrink-0"
-                      onClick={() => handleCancel(item.id, item.title)}
-                      disabled={cancellingId === item.id}
-                    >
-                      {cancellingId === item.id ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                          Cancelling...
-                        </>
-                      ) : (
-                        "Cancel Reservation"
-                      )}
-                    </Button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <EditReservationModal reservation={item} />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30 shrink-0"
+                        onClick={() => handleCancel(item.id, item.title)}
+                        disabled={cancellingId === item.id}
+                      >
+                        {cancellingId === item.id ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                            Cancelling...
+                          </>
+                        ) : (
+                          "Cancel"
+                        )}
+                      </Button>
+                    </div>
                   )}
                 </CardHeader>
 
@@ -206,25 +227,19 @@ export function UserReservationsList({ initialReservations }: UserReservationsLi
                     <div className="flex items-center gap-1.5">
                       <Calendar className="h-3.5 w-3.5 text-foreground/70" />
                       <span className="font-medium text-foreground">
-                        {startDate.toLocaleDateString(undefined, {
-                          weekday: "short",
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
+                        {formatOrgDate(startDate)}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
                       <Clock className="h-3.5 w-3.5 text-foreground/70" />
                       <span>
-                        {startDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} –{" "}
-                        {endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {formatOrgTimeRange(startDate, endDate)}
                       </span>
                     </div>
 
                     <div className="text-[11px] text-muted-foreground/80 ml-auto">
-                      Booked on {new Date(item.createdAt).toLocaleDateString()}
+                      Booked on {formatOrgDate(new Date(item.createdAt), { weekday: undefined })}
                     </div>
                   </div>
 

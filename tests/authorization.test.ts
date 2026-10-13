@@ -1,10 +1,13 @@
 /**
- * Automated Authorization & Security Test Suite
+ * Automated Authorization, Security & Date/Time Guarantees Test Suite
  * Proves that:
  * 1. Session tokens are cryptographically signed and cannot be forged/tampered with.
  * 2. Regular users (USER role) cannot execute administrative actions (create resources, approve/reject bookings).
  * 3. Users cannot cancel or modify reservations belonging to other users.
  * 4. Arbitrary role injection is prevented at the server layer.
+ * 5. PostgreSQL GiST exclusion constraint eliminates concurrency race conditions (23P01).
+ * 6. Date, time, and timezone guarantees (Asia/Colombo UTC+05:30) prevent locale drift,
+ *    past bookings, invalid intervals, midnight-crossing errors, and maintenance conflicts.
  */
 
 import {
@@ -18,9 +21,19 @@ import {
   updateResourceStatusAction,
 } from "../src/actions/resources";
 import {
+  createReservationAction,
+  editReservationAction,
   updateReservationStatusAction,
   cancelReservationAction,
 } from "../src/actions/reservations";
+import {
+  parseOrgDateTime,
+  parseOrgDateTimeRange,
+  validateReservationTiming,
+  formatOrgDate,
+  formatOrgTime,
+  ORGANIZATION_TIMEZONE,
+} from "../src/lib/date-utils";
 import { ResourceStatus, ReservationStatus } from "@prisma/client";
 
 let totalTests = 0;
@@ -38,7 +51,7 @@ function assert(condition: boolean, testName: string) {
 }
 
 async function runSecurityTests() {
-  console.log("🔒 Starting Security & Authorization Test Suite...\n");
+  console.log("🔒 Starting Security, Concurrency & Date/Time Test Suite...\n");
 
   // --------------------------------------------------------------------------
   // TEST GROUP 1: Cryptographic Session Integrity & Anti-Forgery
@@ -104,7 +117,6 @@ async function runSecurityTests() {
   assert(adminUser?.role === "ADMIN", "Admin user has 'ADMIN' role in database");
 
   // 5. Normal USER cannot create resources
-  // When no session cookie is provided or intern session is active, getCurrentUser returns intern (USER)
   const createResourceResult = await createResourceAction({
     name: "Hacked Executive Suite",
     capacity: 10,
@@ -145,7 +157,6 @@ async function runSecurityTests() {
   }
 
   // 8. Normal USER cannot cancel another user's reservation
-  // Create a reservation owned by Admin
   const adminOwnedRes = await prisma.reservation.create({
     data: {
       title: "Admin Private Strategy Meeting",
@@ -249,7 +260,206 @@ async function runSecurityTests() {
   // Clean up base test reservation
   await prisma.reservation.delete({ where: { id: baseRes.id } });
 
-  console.log(`\n🎉 All ${passedTests}/${totalTests} Security & Concurrency Tests PASSED!`);
+  console.log("");
+
+  // --------------------------------------------------------------------------
+  // TEST GROUP 4: Date, Time & Organizational Timezone Guarantees (Finding 3 P1)
+  // --------------------------------------------------------------------------
+  console.log("Group 4: Date, Time & Organizational Timezone Guarantees (Asia/Colombo)");
+
+  // 12. Organization timezone is strictly Asia/Colombo (UTC+05:30)
+  assert(
+    ORGANIZATION_TIMEZONE === "Asia/Colombo",
+    "Organization timezone is declared as Asia/Colombo"
+  );
+
+  // 13. Unambiguous instant conversion: 10:00 AM in Colombo converts to 04:30 AM UTC
+  const testInstant = parseOrgDateTime("2026-10-25", "10:00");
+  assert(
+    testInstant.toISOString() === "2026-10-25T04:30:00.000Z",
+    "parseOrgDateTime('2026-10-25', '10:00') correctly maps to 04:30:00.000Z (UTC+05:30)"
+  );
+
+  // 14. Rendered output in Asia/Colombo matches original local time
+  const formattedTime = formatOrgTime(testInstant);
+  assert(
+    formattedTime === "10:00 AM",
+    `formatOrgTime correctly renders '10:00 AM' in Asia/Colombo (got: ${formattedTime})`
+  );
+
+  // 15. Validation rejects identical start and end time (endTime == startTime)
+  const identicalTiming = validateReservationTiming(
+    new Date("2026-10-25T10:00:00+05:30"),
+    new Date("2026-10-25T10:00:00+05:30")
+  );
+  assert(
+    identicalTiming.valid === false && identicalTiming.error?.includes("strictly after") === true,
+    "Rejects reservation with identical start and end time (0 duration)"
+  );
+
+  // 16. Validation rejects end time before start time
+  const endBeforeStart = validateReservationTiming(
+    new Date("2026-10-25T11:00:00+05:30"),
+    new Date("2026-10-25T10:00:00+05:30")
+  );
+  assert(
+    endBeforeStart.valid === false && endBeforeStart.error?.includes("strictly after") === true,
+    "Rejects reservation where end time is before start time"
+  );
+
+  // 17. Validation rejects duration shorter than 15 minutes
+  const shortDuration = validateReservationTiming(
+    new Date("2026-10-25T10:00:00+05:30"),
+    new Date("2026-10-25T10:05:00+05:30")
+  );
+  assert(
+    shortDuration.valid === false && shortDuration.error?.includes("at least 15 minutes") === true,
+    "Rejects reservation shorter than minimum 15-minute duration"
+  );
+
+  // 18. Validation rejects reservation in the past
+  const pastReservation = validateReservationTiming(
+    new Date("2024-01-01T10:00:00+05:30"),
+    new Date("2024-01-01T11:00:00+05:30")
+  );
+  assert(
+    pastReservation.valid === false && pastReservation.error?.includes("in the past") === true,
+    "Rejects reservation in the past"
+  );
+
+  // 19. Validation rejects reservation exceeding 90-day horizon
+  const distantFuture = validateReservationTiming(
+    new Date(Date.now() + 100 * 24 * 60 * 60 * 1000),
+    new Date(Date.now() + 100 * 24 * 60 * 60 * 1000 + 3600000)
+  );
+  assert(
+    distantFuture.valid === false && distantFuture.error?.includes("90 days") === true,
+    "Rejects reservation exceeding 90-day booking horizon"
+  );
+
+  // 20. Midnight-crossing reservation is parsed and validated cleanly
+  const midnightRange = parseOrgDateTimeRange({
+    startDate: "2026-10-25",
+    startTime: "23:00",
+    endDate: "2026-10-26",
+    endTime: "01:30",
+  });
+  const midnightTiming = validateReservationTiming(midnightRange.start, midnightRange.end);
+  assert(
+    midnightTiming.valid === true,
+    "Midnight-crossing booking (23:00 to 01:30 next day) validates cleanly"
+  );
+  assert(
+    midnightRange.end.getTime() - midnightRange.start.getTime() === 2.5 * 3600 * 1000,
+    "Midnight-crossing reservation has exact 2.5 hour duration"
+  );
+
+  // 21. Reservation rejection for Resource in MAINTENANCE status
+  const maintenanceCategory = await prisma.resourceCategory.findFirst();
+  const maintenanceResource = await prisma.resource.create({
+    data: {
+      name: "Offline Laser Cutter",
+      capacity: 1,
+      status: ResourceStatus.MAINTENANCE,
+      categoryId: maintenanceCategory!.id,
+    },
+  });
+
+  const bookMaintenanceRes = await createReservationAction({
+    resourceId: maintenanceResource.id,
+    title: "Attempted Maintenance Resource Booking",
+    startDate: "2026-10-26",
+    startTime: "10:00",
+    endTime: "11:00",
+  });
+  assert(
+    bookMaintenanceRes.success === false &&
+      bookMaintenanceRes.error?.includes("MAINTENANCE") === true,
+    "createReservationAction blocks booking of resource in MAINTENANCE status"
+  );
+
+  // 22. Reservation rejection for Resource in DECOMMISSIONED status
+  await prisma.resource.update({
+    where: { id: maintenanceResource.id },
+    data: { status: ResourceStatus.DECOMMISSIONED },
+  });
+
+  const bookDecommissionedRes = await createReservationAction({
+    resourceId: maintenanceResource.id,
+    title: "Attempted Decommissioned Resource Booking",
+    startDate: "2026-10-26",
+    startTime: "10:00",
+    endTime: "11:00",
+  });
+  assert(
+    bookDecommissionedRes.success === false &&
+      bookDecommissionedRes.error?.includes("DECOMMISSIONED") === true,
+    "createReservationAction blocks booking of resource in DECOMMISSIONED status"
+  );
+
+  // Restore resource to AVAILABLE for editing tests
+  await prisma.resource.update({
+    where: { id: maintenanceResource.id },
+    data: { status: ResourceStatus.AVAILABLE },
+  });
+
+  // 23. Reservation Editing: Successful modification to a non-conflicting time
+  const editBaseRes = await prisma.reservation.create({
+    data: {
+      title: "Original Booking for Edit Test",
+      startTime: new Date("2026-10-26T14:00:00+05:30"),
+      endTime: new Date("2026-10-26T15:00:00+05:30"),
+      status: ReservationStatus.APPROVED,
+      userId: internUser!.id,
+      resourceId: maintenanceResource.id,
+    },
+  });
+
+  const editSuccessResult = await editReservationAction({
+    reservationId: editBaseRes.id,
+    title: "Updated Booking Title",
+    startDate: "2026-10-26",
+    startTime: "15:30",
+    endTime: "16:30",
+  });
+  assert(
+    editSuccessResult.success === true,
+    "editReservationAction cleanly updates reservation to a non-conflicting time"
+  );
+
+  // 24. Reservation Editing: Conflict detection blocks overlapping edit
+  const conflictingRes = await prisma.reservation.create({
+    data: {
+      title: "Stationary Conflicting Slot",
+      startTime: new Date("2026-10-26T17:00:00+05:30"),
+      endTime: new Date("2026-10-26T18:00:00+05:30"),
+      status: ReservationStatus.APPROVED,
+      userId: adminUser!.id,
+      resourceId: maintenanceResource.id,
+    },
+  });
+
+  const editConflictResult = await editReservationAction({
+    reservationId: editBaseRes.id,
+    startDate: "2026-10-26",
+    startTime: "17:15", // Overlaps with 17:00-18:00
+    endTime: "18:15",
+  });
+  assert(
+    editConflictResult.success === false &&
+      editConflictResult.error?.includes("Schedule Conflict") === true,
+    "editReservationAction prevents editing a booking into an overlapping interval"
+  );
+
+  // Clean up test resources and reservations
+  await prisma.reservation.deleteMany({
+    where: { id: { in: [editBaseRes.id, conflictingRes.id] } },
+  });
+  await prisma.resource.delete({
+    where: { id: maintenanceResource.id },
+  });
+
+  console.log(`\n🎉 All ${passedTests}/${totalTests} Security, Concurrency & Date/Time Tests PASSED!`);
 }
 
 runSecurityTests()

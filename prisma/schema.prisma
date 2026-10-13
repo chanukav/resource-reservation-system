@@ -86,8 +86,8 @@ model Reservation {
   title           String            // Brief summary, e.g. "Team Sprint Planning"
   description     String?
   
-  startTime       DateTime
-  endTime         DateTime
+  startTime       DateTime          @db.Timestamptz(3)
+  endTime         DateTime          @db.Timestamptz(3)
   
   status          ReservationStatus @default(PENDING)
   rejectionReason String?
@@ -98,8 +98,8 @@ model Reservation {
   resourceId      String
   resource        Resource          @relation(fields: [resourceId], references: [id], onDelete: Cascade)
 
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime          @updatedAt @db.Timestamptz(3)
 
   // Performance Indexes:
   // Crucial for the reservation conflict detection query:

@@ -117,27 +117,27 @@ The core physical assets, meeting spaces, and equipment shared across teams.
 ---
 
 ### Table: `reservations`
-Booked time slots for shared resources.
+Booked time slots for shared resources. Stored with explicit microsecond timezone instants (`TIMESTAMPTZ(3)`) locked to the organization's timezone (`Asia/Colombo` / UTC+05:30).
 
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | `VARCHAR(30)` | **PRIMARY KEY** (`cuid()`) | Unique booking identifier. |
 | `title` | `VARCHAR(255)` | **NOT NULL** | Purpose of booking (e.g. "Sprint Planning"). |
 | `description` | `TEXT` | `NULLABLE` | Meeting agenda or equipment requirements. |
-| `startTime` | `TIMESTAMP` | **NOT NULL** | Reserved start time. |
-| `endTime` | `TIMESTAMP` | **NOT NULL** | Reserved end time. |
+| `startTime` | `TIMESTAMPTZ(3)` | **NOT NULL** | Reserved start instant in `Asia/Colombo`. |
+| `endTime` | `TIMESTAMPTZ(3)` | **NOT NULL** | Reserved end instant in `Asia/Colombo`. |
 | `status` | `ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'COMPLETED')` | **NOT NULL**, Default: `'PENDING'` | Lifecycle status of booking. |
 | `rejectionReason` | `TEXT` | `NULLABLE` | Feedback if rejected by admin. |
 | `userId` | `VARCHAR(30)` | **FOREIGN KEY** &rarr; `users.id` (`ON DELETE CASCADE`) | User who reserved. |
 | `resourceId` | `VARCHAR(30)` | **FOREIGN KEY** &rarr; `resources.id` (`ON DELETE CASCADE`) | Resource being reserved. |
-| `createdAt` | `TIMESTAMP` | **NOT NULL**, Default: `now()` | When booking was submitted. |
-| `updatedAt` | `TIMESTAMP` | **NOT NULL**, Auto-updated | Status transition timestamp. |
+| `createdAt` | `TIMESTAMPTZ(3)` | **NOT NULL**, Default: `now()` | When booking was submitted. |
+| `updatedAt` | `TIMESTAMPTZ(3)` | **NOT NULL**, Auto-updated | Status transition timestamp. |
 
 ---
 
 ## 3. Database Indexes for Performance & Concurrency
 
-1. **PostgreSQL GiST Exclusion Constraint (Hardware-Level Concurrency Safety):**
+1. **PostgreSQL GiST Exclusion Constraint with `tstzrange` (Hardware-Level Concurrency & Timezone Safety):**
    ```sql
    CREATE EXTENSION IF NOT EXISTS btree_gist;
 
@@ -145,11 +145,11 @@ Booked time slots for shared resources.
    ADD CONSTRAINT "no_overlapping_active_reservations"
    EXCLUDE USING gist (
      "resourceId" WITH =,
-     tsrange("startTime", "endTime", '[)') WITH &&
+     tstzrange("startTime", "endTime", '[)') WITH &&
    )
    WHERE ("status" IN ('PENDING', 'APPROVED'));
    ```
-   *Rationale:* Solves race conditions under high concurrent booking traffic. Even if two requests interleave simultaneously at `READ COMMITTED` isolation level, the database engine enforces physical interval exclusivity, rejecting the second request with error `23P01 (exclusion_violation)`.
+   *Rationale:* Solves race conditions under high concurrent booking traffic across global and local timezones. Uses `tstzrange` with half-open intervals `'[)'` to ensure adjacent bookings (e.g., 10:00–11:00 followed by 11:00–12:00) are cleanly permitted, while true overlaps are physically rejected by the PostgreSQL storage engine with error `23P01 (exclusion_violation)`.
 
 2. **Compound Performance Index:**
    ```sql

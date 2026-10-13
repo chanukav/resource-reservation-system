@@ -41,8 +41,14 @@ import {
   Loader2,
   MapPin,
   Users,
+  Globe,
 } from "lucide-react";
 import { ResourceStatus, ReservationStatus } from "@prisma/client";
+import {
+  formatOrgDate,
+  formatOrgTimeRange,
+  ORGANIZATION_TIMEZONE,
+} from "@/lib/date-utils";
 
 export type AdminReservationItem = {
   id: string;
@@ -410,23 +416,17 @@ export function AdminDashboard({
                       <div className="flex items-center gap-1.5">
                         <Calendar className="h-3.5 w-3.5 text-foreground/70" />
                         <span className="font-medium text-foreground">
-                          {startDate.toLocaleDateString(undefined, {
-                            weekday: "short",
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
+                          {formatOrgDate(startDate)}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <Clock className="h-3.5 w-3.5 text-foreground/70" />
                         <span>
-                          {startDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} –{" "}
-                          {endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {formatOrgTimeRange(startDate, endDate)}
                         </span>
                       </div>
                       <div className="text-[11px] text-muted-foreground ml-auto">
-                        Submitted {new Date(item.createdAt).toLocaleDateString()}
+                        Submitted {formatOrgDate(new Date(item.createdAt), { weekday: undefined })}
                       </div>
                     </div>
 
@@ -469,8 +469,14 @@ export function AdminDashboard({
                   </div>
 
                   <div className="text-xs text-muted-foreground flex items-center gap-3">
-                    <span>
-                      {startDate.toLocaleDateString()} • {startDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - {endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" />
+                      {formatOrgDate(startDate)}
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5" />
+                      {formatOrgTimeRange(startDate, endDate)}
                     </span>
                   </div>
                 </CardHeader>
