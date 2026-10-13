@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "node tests/run-tests.js prisma/seed.ts",
-    "test:auth": "node tests/run-tests.js tests/authorization.test.ts"
+    "test:auth": "node tests/run-tests.js tests/authorization.test.ts",
+    "test:checklist": "node tests/run-tests.js tests/evaluator-checklist.test.ts",
+    "test": "node tests/run-tests.js tests/evaluator-checklist.test.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

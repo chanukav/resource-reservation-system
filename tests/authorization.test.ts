@@ -30,13 +30,11 @@ import {
   parseOrgDateTime,
   parseOrgDateTimeRange,
   validateReservationTiming,
-  formatOrgDate,
   formatOrgTime,
   ORGANIZATION_TIMEZONE,
 } from "../src/lib/date-utils";
 import {
   canTransitionReservation,
-  PERMITTED_RESERVATION_TRANSITIONS,
 } from "../src/lib/reservation-state";
 import { sanitizeServerError } from "../src/lib/validations";
 import { ResourceStatus, ReservationStatus } from "@prisma/client";
@@ -732,7 +730,7 @@ async function runSecurityTests() {
   // 7. Resource status update: invalid enum value
   const invalidResourceStatusAttempt = await updateResourceStatusAction(
     testTargetResource!.id,
-    "DELETED_STATUS" as any
+    "DELETED_STATUS" as unknown as ResourceStatus
   );
   assert(
     invalidResourceStatusAttempt.success === false &&
