@@ -129,7 +129,22 @@ export async function createReservationAction(formData: {
         : "Reservation confirmed successfully!",
       data: reservation,
     };
-  } catch (error) {
+  } catch (error: unknown) {
+    const errString = error instanceof Error ? error.message : String(error);
+
+    // Detect PostgreSQL exclusion constraint violation (code 23P01)
+    if (
+      errString.includes("no_overlapping_active_reservations") ||
+      errString.includes("exclusion constraint") ||
+      errString.includes("23P01")
+    ) {
+      return {
+        success: false,
+        error:
+          "Schedule Conflict: A simultaneous booking was confirmed for this overlapping time slot. Please select another time window.",
+      };
+    }
+
     console.error("createReservationAction error:", error);
     return {
       success: false,

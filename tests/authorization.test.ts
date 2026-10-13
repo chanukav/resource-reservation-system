@@ -166,7 +166,90 @@ async function runSecurityTests() {
   // Clean up test reservation
   await prisma.reservation.delete({ where: { id: adminOwnedRes.id } });
 
-  console.log(`\n🎉 All ${passedTests}/${totalTests} Authorization & Security Tests PASSED!`);
+  console.log("");
+
+  // --------------------------------------------------------------------------
+  // TEST GROUP 3: Concurrency Safety & PostgreSQL Exclusion Constraint
+  // --------------------------------------------------------------------------
+  console.log("Group 3: Concurrency Safety & PostgreSQL Exclusion Constraint");
+
+  const startT = new Date(Date.now() + 100000000);
+  const endT = new Date(Date.now() + 103600000); // +1 hour
+
+  // 9. First booking succeeds
+  const baseRes = await prisma.reservation.create({
+    data: {
+      title: "Concurrent Booking Base",
+      startTime: startT,
+      endTime: endT,
+      status: ReservationStatus.APPROVED,
+      userId: internUser!.id,
+      resourceId: sampleResource!.id,
+    },
+  });
+  assert(baseRes.id !== undefined, "Initial base reservation created");
+
+  // 10. Direct insert of overlapping booking is REJECTED by PostgreSQL exclusion constraint
+  let exclusionViolated = false;
+  try {
+    const overlappingStart = new Date(startT.getTime() + 30 * 60 * 1000); // +30m overlap
+    const overlappingEnd = new Date(endT.getTime() + 30 * 60 * 1000);
+
+    await prisma.reservation.create({
+      data: {
+        title: "Illegal Overlapping Booking",
+        startTime: overlappingStart,
+        endTime: overlappingEnd,
+        status: ReservationStatus.APPROVED,
+        userId: internUser!.id,
+        resourceId: sampleResource!.id,
+      },
+    });
+  } catch (err: unknown) {
+    const msg = String(err);
+    if (
+      msg.includes("no_overlapping_active_reservations") ||
+      msg.includes("exclusion") ||
+      msg.includes("conflicts with existing key")
+    ) {
+      exclusionViolated = true;
+    }
+  }
+  assert(
+    exclusionViolated,
+    "PostgreSQL exclusion constraint blocks overlapping reservation insert (23P01)"
+  );
+
+  // 11. Adjacent bookings (half-open [) interval) are correctly permitted
+  let adjacentSucceeded = false;
+  try {
+    const adjacentStart = endT; // Starts exactly when baseRes ends
+    const adjacentEnd = new Date(endT.getTime() + 3600000);
+
+    const adjRes = await prisma.reservation.create({
+      data: {
+        title: "Legitimate Adjacent Booking",
+        startTime: adjacentStart,
+        endTime: adjacentEnd,
+        status: ReservationStatus.APPROVED,
+        userId: internUser!.id,
+        resourceId: sampleResource!.id,
+      },
+    });
+
+    if (adjRes.id) {
+      adjacentSucceeded = true;
+      await prisma.reservation.delete({ where: { id: adjRes.id } });
+    }
+  } catch (err) {
+    console.error("Adjacent insert failed:", err);
+  }
+  assert(adjacentSucceeded, "Adjacent booking (10:00-11:00 followed by 11:00-12:00) is cleanly permitted");
+
+  // Clean up base test reservation
+  await prisma.reservation.delete({ where: { id: baseRes.id } });
+
+  console.log(`\n🎉 All ${passedTests}/${totalTests} Security & Concurrency Tests PASSED!`);
 }
 
 runSecurityTests()

@@ -101,6 +101,20 @@ const conflictingBooking = await prisma.reservation.findFirst({
 });
 ```
 
+To eliminate race conditions under interleaved concurrent requests at `READ COMMITTED` isolation, the invariant is physically enforced in the database via a **PostgreSQL GiST Exclusion Constraint**:
+```sql
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+ALTER TABLE "reservations"
+ADD CONSTRAINT "no_overlapping_active_reservations"
+EXCLUDE USING gist (
+  "resourceId" WITH =,
+  tsrange("startTime", "endTime", '[)') WITH &&
+)
+WHERE ("status" IN ('PENDING', 'APPROVED'));
+```
+Any simultaneous request attempting to insert an overlapping interval is stopped by the database engine with error `23P01` (`exclusion_violation`), which the application catches and converts into a user-friendly conflict message.
+
 ### 2. Next.js Server Actions over REST Boilerplate
 Rather than building separate Express controllers and client-side `axios` fetching hooks, mutations are executed via typed **Server Actions** (`src/actions/reservations.ts` and `src/actions/resources.ts`). This guarantees:
 - Direct execution within database transactions.

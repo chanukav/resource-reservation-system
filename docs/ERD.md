@@ -137,20 +137,26 @@ Booked time slots for shared resources.
 
 ## 3. Database Indexes for Performance & Concurrency
 
-1. **Conflict Detection Compound Index:**
+1. **PostgreSQL GiST Exclusion Constraint (Hardware-Level Concurrency Safety):**
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+   ALTER TABLE "reservations"
+   ADD CONSTRAINT "no_overlapping_active_reservations"
+   EXCLUDE USING gist (
+     "resourceId" WITH =,
+     tsrange("startTime", "endTime", '[)') WITH &&
+   )
+   WHERE ("status" IN ('PENDING', 'APPROVED'));
+   ```
+   *Rationale:* Solves race conditions under high concurrent booking traffic. Even if two requests interleave simultaneously at `READ COMMITTED` isolation level, the database engine enforces physical interval exclusivity, rejecting the second request with error `23P01 (exclusion_violation)`.
+
+2. **Compound Performance Index:**
    ```sql
    CREATE INDEX "reservations_resourceId_startTime_endTime_idx" 
    ON "reservations" ("resourceId", "startTime", "endTime");
    ```
-   *Rationale:* Every new booking runs a concurrency check query:
-   ```sql
-   SELECT id FROM reservations 
-   WHERE resourceId = $1 
-     AND status IN ('APPROVED', 'PENDING')
-     AND startTime < $newEndTime 
-     AND endTime > $newStartTime;
-   ```
-   This index ensures $O(\log N)$ index scans instead of costly sequential table scans.
+   *Rationale:* Enables sub-millisecond application-level conflict lookups before attempting table inserts.
 
 2. **User Dashboard Index:**
    ```sql
