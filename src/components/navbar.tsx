@@ -24,12 +24,10 @@ export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
-  const handleRoleSwitch = (email: string, roleName: string) => {
+  const handleRoleSwitch = (personaKey: "INTERN" | "ADMIN", roleName: string) => {
     startTransition(async () => {
-      await switchUserAction(email);
-      toast.success(`Switched active persona to ${roleName}`, {
-        description: `Logged in as ${email}`,
-      });
+      await switchUserAction(personaKey);
+      toast.success(`Switched active persona to ${roleName}`);
     });
   };
 
@@ -109,7 +107,7 @@ export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
               variant={currentUser?.role === "USER" ? "default" : "ghost"}
               className="h-7 text-xs px-2.5"
               disabled={isPending}
-              onClick={() => handleRoleSwitch("intern@primewave.com", "Engineering Intern (USER)")}
+              onClick={() => handleRoleSwitch("INTERN", "Engineering Intern (USER)")}
             >
               <UserCheck className="h-3.5 w-3.5 mr-1" />
               Intern User
@@ -119,7 +117,7 @@ export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
               variant={currentUser?.role === "ADMIN" ? "default" : "ghost"}
               className="h-7 text-xs px-2.5"
               disabled={isPending}
-              onClick={() => handleRoleSwitch("admin@primewave.com", "Platform Admin (ADMIN)")}
+              onClick={() => handleRoleSwitch("ADMIN", "Platform Admin (ADMIN)")}
             >
               <ShieldCheck className="h-3.5 w-3.5 mr-1" />
               Admin

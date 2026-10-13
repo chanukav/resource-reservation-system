@@ -199,6 +199,21 @@ export async function updateReservationStatusAction({
       return { success: false, error: "Administrator privileges required." };
     }
 
+    const targetReservation = await prisma.reservation.findUnique({
+      where: { id: reservationId },
+    });
+
+    if (!targetReservation) {
+      return { success: false, error: "Reservation not found." };
+    }
+
+    if (targetReservation.status !== ReservationStatus.PENDING) {
+      return {
+        success: false,
+        error: `Cannot update reservation: it is already ${targetReservation.status.toLowerCase()}.`,
+      };
+    }
+
     await prisma.reservation.update({
       where: { id: reservationId },
       data: {

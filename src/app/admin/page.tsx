@@ -32,7 +32,7 @@ export default async function AdminPage() {
         <form
           action={async () => {
             "use server";
-            await switchUserAction("admin@primewave.com");
+            await switchUserAction("ADMIN");
           }}
         >
           <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs">
