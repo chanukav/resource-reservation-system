@@ -58,26 +58,26 @@ erDiagram
     Resource ||--o{ Reservation : "has"
     Resource {
         String id PK "cuid()"
-        String name
+        String name "unique per category"
         String description
         String location
         Int capacity
         ResourceStatus status "AVAILABLE | MAINTENANCE | DECOMMISSIONED"
         Boolean requiresApproval
-        String categoryId FK
+        String categoryId FK "references ResourceCategory.id (ON DELETE RESTRICT)"
     }
 
     Reservation {
         String id PK "cuid()"
         String title
         String description
-        DateTime startTime
-        DateTime endTime
-        ReservationStatus status "PENDING | APPROVED | REJECTED | CANCELLED"
+        DateTime startTime "TIMESTAMPTZ(3) Asia/Colombo"
+        DateTime endTime "TIMESTAMPTZ(3) Asia/Colombo"
+        ReservationStatus status "PENDING | APPROVED | REJECTED | CANCELLED | COMPLETED"
         String rejectionReason
-        String userId FK
-        String resourceId FK
-        DateTime createdAt
+        String userId FK "references User.id (ON DELETE CASCADE)"
+        String resourceId FK "references Resource.id (ON DELETE CASCADE)"
+        DateTime createdAt "TIMESTAMPTZ(3)"
     }
 ```
 

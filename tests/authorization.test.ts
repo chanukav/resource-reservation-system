@@ -362,7 +362,7 @@ async function runSecurityTests() {
   const maintenanceCategory = await prisma.resourceCategory.findFirst();
   const maintenanceResource = await prisma.resource.create({
     data: {
-      name: "Offline Laser Cutter",
+      name: `Offline Laser Cutter ${Date.now()}`,
       capacity: 1,
       status: ResourceStatus.MAINTENANCE,
       categoryId: maintenanceCategory!.id,
@@ -494,7 +494,7 @@ async function runSecurityTests() {
   const testCategory = await prisma.resourceCategory.findFirst();
   const testResource = await prisma.resource.create({
     data: {
-      name: "State Machine Test Room",
+      name: `State Machine Test Room ${Date.now()}`,
       capacity: 4,
       status: ResourceStatus.AVAILABLE,
       categoryId: testCategory!.id,
