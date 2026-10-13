@@ -142,11 +142,16 @@ export function AdminDashboard({
     e.preventDefault();
     if (!selectedResId) return;
 
+    if (!rejectReason.trim() || rejectReason.trim().length < 5) {
+      toast.error("Please provide a descriptive rejection reason (minimum 5 characters).");
+      return;
+    }
+
     startTransition(async () => {
       const res = await updateReservationStatusAction({
         reservationId: selectedResId,
         status: ReservationStatus.REJECTED,
-        rejectionReason: rejectReason.trim() || "Declined by administrator.",
+        rejectionReason: rejectReason.trim(),
       });
 
       if (res.success) {

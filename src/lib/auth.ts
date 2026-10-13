@@ -125,8 +125,13 @@ export async function getCurrentUser(): Promise<SafeUser | null> {
   } catch {
     // Fallback when called outside active Next.js request context (e.g. test runner)
     try {
+      const emailToUse =
+        process.env.TEST_AUTH_AS === "ADMIN"
+          ? DEMO_PERSONAS.ADMIN.email
+          : DEMO_PERSONAS.INTERN.email;
+
       const fallbackUser = await prisma.user.findUnique({
-        where: { email: DEMO_PERSONAS.INTERN.email },
+        where: { email: emailToUse },
         select: { id: true, name: true, email: true, role: true },
       });
       return fallbackUser;

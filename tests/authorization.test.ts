@@ -34,6 +34,10 @@ import {
   formatOrgTime,
   ORGANIZATION_TIMEZONE,
 } from "../src/lib/date-utils";
+import {
+  canTransitionReservation,
+  PERMITTED_RESERVATION_TRANSITIONS,
+} from "../src/lib/reservation-state";
 import { ResourceStatus, ReservationStatus } from "@prisma/client";
 
 let totalTests = 0;
@@ -459,7 +463,184 @@ async function runSecurityTests() {
     where: { id: maintenanceResource.id },
   });
 
-  console.log(`\n🎉 All ${passedTests}/${totalTests} Security, Concurrency & Date/Time Tests PASSED!`);
+  // --------------------------------------------------------------------------
+  // TEST GROUP 5: Reservation Lifecycle & State Machine Transitions (Finding 5 P1)
+  // --------------------------------------------------------------------------
+  console.log("");
+  console.log("Group 5: Reservation Lifecycle & State Machine Transitions");
+
+  // 25. State Transition Policy: Legal transitions
+  assert(
+    canTransitionReservation(ReservationStatus.PENDING, ReservationStatus.APPROVED).allowed &&
+      canTransitionReservation(ReservationStatus.PENDING, ReservationStatus.REJECTED).allowed &&
+      canTransitionReservation(ReservationStatus.PENDING, ReservationStatus.CANCELLED).allowed,
+    "PENDING permits transitions to APPROVED, REJECTED, and CANCELLED"
+  );
+  assert(
+    canTransitionReservation(ReservationStatus.APPROVED, ReservationStatus.CANCELLED).allowed &&
+      canTransitionReservation(ReservationStatus.APPROVED, ReservationStatus.COMPLETED).allowed,
+    "APPROVED permits transitions to CANCELLED and COMPLETED"
+  );
+
+  // 26. State Transition Policy: Illegal transitions from terminal states
+  assert(
+    !canTransitionReservation(ReservationStatus.CANCELLED, ReservationStatus.APPROVED).allowed &&
+      !canTransitionReservation(ReservationStatus.REJECTED, ReservationStatus.APPROVED).allowed &&
+      !canTransitionReservation(ReservationStatus.COMPLETED, ReservationStatus.CANCELLED).allowed,
+    "Terminal states (CANCELLED, REJECTED, COMPLETED) reject further transitions"
+  );
+
+  // Create a pending reservation for testing review actions
+  const testCategory = await prisma.resourceCategory.findFirst();
+  const testResource = await prisma.resource.create({
+    data: {
+      name: "State Machine Test Room",
+      capacity: 4,
+      status: ResourceStatus.AVAILABLE,
+      categoryId: testCategory!.id,
+    },
+  });
+
+  const pendingRes = await prisma.reservation.create({
+    data: {
+      title: "Pending State Machine Test",
+      startTime: new Date(Date.now() + 2 * 86400000), // +2 days
+      endTime: new Date(Date.now() + 2 * 86400000 + 3600000),
+      status: ReservationStatus.PENDING,
+      userId: internUser!.id,
+      resourceId: testResource.id,
+    },
+  });
+
+  // 27. Rejection without reason fails validation
+  process.env.TEST_AUTH_AS = "ADMIN";
+
+  const emptyRejectionRes = await updateReservationStatusAction({
+    reservationId: pendingRes.id,
+    status: ReservationStatus.REJECTED,
+    rejectionReason: "   ",
+  });
+  assert(
+    emptyRejectionRes.success === false &&
+      emptyRejectionRes.error?.includes("minimum 5 characters") === true,
+    "updateReservationStatusAction blocks rejection without a valid explanation"
+  );
+
+  // 28. Valid rejection transitions status atomically to REJECTED
+  const validRejectionRes = await updateReservationStatusAction({
+    reservationId: pendingRes.id,
+    status: ReservationStatus.REJECTED,
+    rejectionReason: "Equipment reserved for urgent hardware calibration.",
+  });
+  assert(
+    validRejectionRes.success === true,
+    "updateReservationStatusAction transitions PENDING to REJECTED with explanation"
+  );
+
+  const updatedRejected = await prisma.reservation.findUnique({
+    where: { id: pendingRes.id },
+  });
+  assert(
+    updatedRejected?.status === ReservationStatus.REJECTED &&
+      updatedRejected?.rejectionReason === "Equipment reserved for urgent hardware calibration.",
+    "Database record reflects REJECTED status and stored rejectionReason"
+  );
+
+  // 29. Cannot approve an already REJECTED reservation
+  const approveRejectedAttempt = await updateReservationStatusAction({
+    reservationId: pendingRes.id,
+    status: ReservationStatus.APPROVED,
+  });
+  assert(
+    approveRejectedAttempt.success === false &&
+      approveRejectedAttempt.error?.includes("Illegal state transition") === true,
+    "Blocks approval of an already REJECTED reservation"
+  );
+
+  // 30. Recheck resource operational status upon approval
+  const pendingForMaint = await prisma.reservation.create({
+    data: {
+      title: "Pending Approval Under Maintenance",
+      startTime: new Date(Date.now() + 3 * 86400000),
+      endTime: new Date(Date.now() + 3 * 86400000 + 3600000),
+      status: ReservationStatus.PENDING,
+      userId: internUser!.id,
+      resourceId: testResource.id,
+    },
+  });
+
+  // Put resource in MAINTENANCE
+  await prisma.resource.update({
+    where: { id: testResource.id },
+    data: { status: ResourceStatus.MAINTENANCE },
+  });
+
+  const approveInMaintenance = await updateReservationStatusAction({
+    reservationId: pendingForMaint.id,
+    status: ReservationStatus.APPROVED,
+  });
+  assert(
+    approveInMaintenance.success === false &&
+      approveInMaintenance.error?.includes("MAINTENANCE") === true,
+    "Blocks approval when target resource was placed in MAINTENANCE"
+  );
+
+  // Restore resource to AVAILABLE and test successful atomic approval
+  await prisma.resource.update({
+    where: { id: testResource.id },
+    data: { status: ResourceStatus.AVAILABLE },
+  });
+
+  // 31. Atomic approval of valid pending request succeeds
+  const approveValid = await updateReservationStatusAction({
+    reservationId: pendingForMaint.id,
+    status: ReservationStatus.APPROVED,
+  });
+  assert(
+    approveValid.success === true,
+    "updateReservationStatusAction atomically approves valid pending reservation"
+  );
+
+  // 32. Second concurrent approval attempt is rejected (idempotency / race guard)
+  const duplicateApproval = await updateReservationStatusAction({
+    reservationId: pendingForMaint.id,
+    status: ReservationStatus.APPROVED,
+  });
+  assert(
+    duplicateApproval.success === false,
+    "Duplicate approval attempt is rejected as reservation is no longer PENDING"
+  );
+
+  // 33. Cannot cancel a concluded/past reservation
+  delete process.env.TEST_AUTH_AS;
+
+  const pastConcludedRes = await prisma.reservation.create({
+    data: {
+      title: "Past Concluded Reservation",
+      startTime: new Date(Date.now() - 7200000), // 2 hours ago
+      endTime: new Date(Date.now() - 3600000),   // 1 hour ago
+      status: ReservationStatus.APPROVED,
+      userId: internUser!.id,
+      resourceId: testResource.id,
+    },
+  });
+
+  const cancelPastAttempt = await cancelReservationAction(pastConcludedRes.id);
+  assert(
+    cancelPastAttempt.success === false &&
+      cancelPastAttempt.error?.includes("already concluded") === true,
+    "cancelReservationAction blocks cancelling a reservation whose time has already concluded"
+  );
+
+  // Clean up state machine test records
+  await prisma.reservation.deleteMany({
+    where: { id: { in: [pendingRes.id, pendingForMaint.id, pastConcludedRes.id] } },
+  });
+  await prisma.resource.delete({
+    where: { id: testResource.id },
+  });
+
+  console.log(`\n🎉 All ${passedTests}/${totalTests} Security, Concurrency & Lifecycle Tests PASSED!`);
 }
 
 runSecurityTests()

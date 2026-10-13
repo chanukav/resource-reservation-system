@@ -127,6 +127,14 @@ Rather than building separate Express controllers and client-side `axios` fetchi
 ### 3. Connection Pooling Singleton
 In development mode, Next.js fast-refresh can spawn multiple Prisma client instances. We implement a global singleton pattern (`src/lib/prisma.ts`) to avoid PostgreSQL connection exhaustion.
 
+### 4. Explicit Lifecycle State Machine & Provisional Interval Locking
+Reservation status transitions follow a rigid, validated state machine ([src/lib/reservation-state.ts](src/lib/reservation-state.ts)):
+- **Provisional Interval Lock:** `PENDING` requests hold a temporary availability lock on the resource. This eliminates double-booking race conditions while administrators evaluate requests. If rejected or cancelled, the provisional lock is instantly released.
+- **Terminal Immutability:** `REJECTED`, `CANCELLED`, and `COMPLETED` are terminal states; no further transitions are permitted.
+- **Atomic Conditional Updates:** Administrator reviews (`updateReservationStatusAction`) execute atomic conditional updates (`WHERE id = $id AND status = 'PENDING'`), eliminating concurrent administrator race conditions.
+- **Mandatory Rejection Explanation:** Rejections require an explicit, audited explanation (minimum 5 characters).
+- Full specification documented in [docs/RESERVATION_LIFECYCLE.md](docs/RESERVATION_LIFECYCLE.md).
+
 ---
 
 ## 5. Getting Started (Local Setup)

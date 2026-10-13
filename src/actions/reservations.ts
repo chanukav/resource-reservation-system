@@ -10,6 +10,7 @@ import {
   formatOrgDate,
   formatOrgTimeRange,
 } from "@/lib/date-utils";
+import { canTransitionReservation } from "@/lib/reservation-state";
 
 function safeRevalidatePath(path: string) {
   try {
@@ -328,6 +329,7 @@ export async function editReservationAction(formData: EditReservationInput): Pro
 
 /**
  * Cancels a reservation by the owner or an administrator.
+ * Strictly adheres to the lifecycle state machine and executes atomically.
  */
 export async function cancelReservationAction(reservationId: string): Promise<ActionResult> {
   try {
@@ -349,14 +351,39 @@ export async function cancelReservationAction(reservationId: string): Promise<Ac
       return { success: false, error: "Not authorized to cancel this reservation." };
     }
 
-    if (reservation.status === ReservationStatus.CANCELLED) {
-      return { success: false, error: "Reservation is already cancelled." };
+    // Validate state transition policy
+    const transitionCheck = canTransitionReservation(
+      reservation.status,
+      ReservationStatus.CANCELLED
+    );
+    if (!transitionCheck.allowed) {
+      return { success: false, error: transitionCheck.reason };
     }
 
-    await prisma.reservation.update({
-      where: { id: reservationId },
+    // Cannot cancel a reservation that has already concluded
+    if (reservation.endTime <= new Date()) {
+      return {
+        success: false,
+        error: "Cannot cancel a reservation that has already concluded.",
+      };
+    }
+
+    // Atomic conditional update to guard against concurrent transitions
+    const updated = await prisma.reservation.updateMany({
+      where: {
+        id: reservationId,
+        status: { in: [ReservationStatus.PENDING, ReservationStatus.APPROVED] },
+        endTime: { gt: new Date() },
+      },
       data: { status: ReservationStatus.CANCELLED },
     });
+
+    if (updated.count === 0) {
+      return {
+        success: false,
+        error: "Cancellation conflict: reservation has already been cancelled, resolved, or has concluded.",
+      };
+    }
 
     safeRevalidatePath("/");
     safeRevalidatePath("/reservations");
@@ -371,6 +398,7 @@ export async function cancelReservationAction(reservationId: string): Promise<Ac
 
 /**
  * Administrator action to approve or reject a pending reservation.
+ * Executes an atomic conditional update and enforces all business invariants.
  */
 export async function updateReservationStatusAction({
   reservationId,
@@ -387,28 +415,95 @@ export async function updateReservationStatusAction({
       return { success: false, error: "Administrator privileges required." };
     }
 
+    if (status !== ReservationStatus.APPROVED && status !== ReservationStatus.REJECTED) {
+      return {
+        success: false,
+        error: "Invalid target status. Administrator review only permits APPROVED or REJECTED.",
+      };
+    }
+
     const targetReservation = await prisma.reservation.findUnique({
       where: { id: reservationId },
+      include: { resource: true },
     });
 
     if (!targetReservation) {
       return { success: false, error: "Reservation not found." };
     }
 
-    if (targetReservation.status !== ReservationStatus.PENDING) {
-      return {
-        success: false,
-        error: `Cannot update reservation: it is already ${targetReservation.status.toLowerCase()}.`,
-      };
+    // Validate state transition
+    const transitionCheck = canTransitionReservation(targetReservation.status, status);
+    if (!transitionCheck.allowed) {
+      return { success: false, error: transitionCheck.reason };
     }
 
-    await prisma.reservation.update({
-      where: { id: reservationId },
+    // If REJECTED, require a non-empty, descriptive rejection reason (minimum 5 chars)
+    if (status === ReservationStatus.REJECTED) {
+      if (!rejectionReason || !rejectionReason.trim() || rejectionReason.trim().length < 5) {
+        return {
+          success: false,
+          error: "A descriptive rejection reason (minimum 5 characters) is required when rejecting a reservation.",
+        };
+      }
+    }
+
+    // If APPROVED, recheck resource availability and conflicts
+    if (status === ReservationStatus.APPROVED) {
+      // 1. Recheck operational status of the resource
+      if (targetReservation.resource.status !== "AVAILABLE") {
+        return {
+          success: false,
+          error: `Cannot approve reservation: Target resource '${targetReservation.resource.name}' is currently in ${targetReservation.resource.status} status.`,
+        };
+      }
+
+      // 2. Recheck start time (cannot approve past requests)
+      if (targetReservation.startTime <= new Date()) {
+        return {
+          success: false,
+          error: "Cannot approve reservation: the requested reservation start time has already passed.",
+        };
+      }
+
+      // 3. Recheck conflicts with other approved reservations
+      const conflictingBooking = await prisma.reservation.findFirst({
+        where: {
+          resourceId: targetReservation.resourceId,
+          id: { not: reservationId },
+          status: ReservationStatus.APPROVED,
+          startTime: { lt: targetReservation.endTime },
+          endTime: { gt: targetReservation.startTime },
+        },
+      });
+
+      if (conflictingBooking) {
+        const conflictRange = formatOrgTimeRange(conflictingBooking.startTime, conflictingBooking.endTime);
+        const conflictDate = formatOrgDate(conflictingBooking.startTime);
+        return {
+          success: false,
+          error: `Cannot approve reservation: A conflicting reservation is already approved on ${conflictDate} (${conflictRange}).`,
+        };
+      }
+    }
+
+    // Atomic conditional update to guard against concurrent admin actions
+    const updated = await prisma.reservation.updateMany({
+      where: {
+        id: reservationId,
+        status: ReservationStatus.PENDING,
+      },
       data: {
         status,
-        rejectionReason: status === ReservationStatus.REJECTED ? rejectionReason : null,
+        rejectionReason: status === ReservationStatus.REJECTED ? rejectionReason!.trim() : null,
       },
     });
+
+    if (updated.count === 0) {
+      return {
+        success: false,
+        error: "Action conflict: This reservation is no longer pending review (it was already resolved or cancelled).",
+      };
+    }
 
     safeRevalidatePath("/");
     safeRevalidatePath("/reservations");
@@ -418,8 +513,51 @@ export async function updateReservationStatusAction({
       success: true,
       message: `Reservation marked as ${status.toLowerCase()}.`,
     };
-  } catch (error) {
+  } catch (error: unknown) {
+    const errString = error instanceof Error ? error.message : String(error);
+
+    if (
+      errString.includes("no_overlapping_active_reservations") ||
+      errString.includes("exclusion constraint") ||
+      errString.includes("23P01")
+    ) {
+      return {
+        success: false,
+        error: "Schedule Conflict: A simultaneous booking was confirmed for this overlapping time slot.",
+      };
+    }
+
     console.error("updateReservationStatusAction error:", error);
     return { success: false, error: "Failed to update reservation status." };
+  }
+}
+
+/**
+ * Automatically synchronizes past approved reservations to COMPLETED.
+ */
+export async function syncCompletedReservationsAction(): Promise<
+  ActionResult<{ completedCount: number }>
+> {
+  try {
+    const result = await prisma.reservation.updateMany({
+      where: {
+        status: ReservationStatus.APPROVED,
+        endTime: { lt: new Date() },
+      },
+      data: {
+        status: ReservationStatus.COMPLETED,
+      },
+    });
+
+    if (result.count > 0) {
+      safeRevalidatePath("/");
+      safeRevalidatePath("/reservations");
+      safeRevalidatePath("/admin");
+    }
+
+    return { success: true, data: { completedCount: result.count } };
+  } catch (error) {
+    console.error("syncCompletedReservationsAction error:", error);
+    return { success: false, error: "Failed to synchronize completed reservations." };
   }
 }
