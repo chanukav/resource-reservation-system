@@ -7,7 +7,7 @@ import {
 } from "@/components/admin-dashboard";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { switchUserAction } from "@/lib/auth";
+import { switchUserAction } from "@/actions/auth";
 
 export default async function AdminPage() {
   const currentUser = await getCurrentUser();

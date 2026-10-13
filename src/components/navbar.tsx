@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { switchUserAction, SafeUser } from "@/lib/auth";
+import { switchUserAction } from "@/actions/auth";
+import type { SafeUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
