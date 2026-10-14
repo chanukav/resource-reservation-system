@@ -119,6 +119,10 @@ export async function getCurrentUser(): Promise<SafeUser | null> {
   } catch {
     // Fallback when called outside active Next.js request context (e.g. test runner)
     try {
+      if (process.env.TEST_AUTH_AS === "NONE") {
+        return null;
+      }
+
       const emailToUse =
         process.env.TEST_AUTH_AS === "ADMIN"
           ? DEMO_PERSONAS.ADMIN.email

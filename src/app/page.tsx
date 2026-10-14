@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { ResourceCatalog, SerializedResource, SerializedCategory } from "@/components/resource-catalog";
-import { Building2, CalendarCheck2, Layers, CheckCircle2, ShieldCheck, UserCheck } from "lucide-react";
+import { Building2, CalendarCheck2, Layers, CheckCircle2, ShieldCheck } from "lucide-react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 

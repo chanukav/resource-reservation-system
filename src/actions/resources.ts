@@ -12,6 +12,14 @@ import {
   sanitizeServerError,
 } from "@/lib/validations";
 
+function safeRevalidatePath(path: string) {
+  try {
+    revalidatePath(path);
+  } catch {
+    // Ignore when executed in test runner outside request scope
+  }
+}
+
 export async function createResourceAction(formData: {
   name: string;
   description?: string;
@@ -54,8 +62,8 @@ export async function createResourceAction(formData: {
       },
     });
 
-    revalidatePath("/");
-    revalidatePath("/admin");
+    safeRevalidatePath("/");
+    safeRevalidatePath("/admin");
 
     return {
       success: true,
@@ -93,8 +101,8 @@ export async function updateResourceStatusAction(
       data: { status: validatedData.status },
     });
 
-    revalidatePath("/");
-    revalidatePath("/admin");
+    safeRevalidatePath("/");
+    safeRevalidatePath("/admin");
 
     return {
       success: true,

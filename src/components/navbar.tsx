@@ -82,34 +82,7 @@ export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
     });
   };
 
-  const navLinks = [
-    {
-      href: "/",
-      label: "Browse Resources",
-      icon: LayoutGrid,
-      adminOnly: false,
-    },
-    {
-      href: "/reservations",
-      label: "My Reservations",
-      icon: CalendarDays,
-      adminOnly: false,
-      authRequired: true,
-    },
-    {
-      href: "/admin",
-      label: "Admin Console",
-      icon: ShieldCheck,
-      badge: pendingCount > 0 ? pendingCount : null,
-      adminOnly: true,
-    },
-  ];
 
-  // Strictly filter links: every page requires a session, so signed-out visitors see no links.
-  // Admin link is strictly shown ONLY to the ADMIN role. Regular users cannot see or access it.
-  const visibleLinks = currentUser
-    ? navLinks.filter((link) => !(link.adminOnly && currentUser.role !== "ADMIN"))
-    : [];
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
