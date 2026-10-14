@@ -152,7 +152,8 @@ export function AdminDashboard({
 
   // New user modal state
   const [newUserOpen, setNewUserOpen] = useState(false);
-  const [userName, setUserName] = useState("");
+  const [userFirstName, setUserFirstName] = useState("");
+  const [userLastName, setUserLastName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [userPassword, setUserPassword] = useState("");
   const [userRole, setUserRole] = useState<"USER" | "ADMIN">("USER");
@@ -307,14 +308,15 @@ export function AdminDashboard({
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userName.trim() || !userEmail.trim() || !userPassword) {
+    const fullName = `${userFirstName.trim()} ${userLastName.trim()}`.trim();
+    if (!userFirstName.trim() || !userLastName.trim() || !userEmail.trim() || !userPassword) {
       toast.error("Please fill in all required fields.");
       return;
     }
 
     startTransition(async () => {
       const res = await createUserAction({
-        name: userName.trim(),
+        name: fullName,
         email: userEmail.trim(),
         password: userPassword,
         role: userRole,
@@ -323,7 +325,8 @@ export function AdminDashboard({
       if (res.success) {
         toast.success(res.message);
         setNewUserOpen(false);
-        setUserName("");
+        setUserFirstName("");
+        setUserLastName("");
         setUserEmail("");
         setUserPassword("");
         setUserRole("USER");
@@ -441,7 +444,7 @@ export function AdminDashboard({
                   <div className="space-y-1.5">
                     <Label htmlFor="res-cat" className="text-xs font-medium">Category</Label>
                     <Select value={resCategoryId} onValueChange={(v) => v && setResCategoryId(v)}>
-                      <SelectTrigger id="res-cat" className="text-xs">
+                      <SelectTrigger id="res-cat" className="w-full text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -539,16 +542,29 @@ export function AdminDashboard({
                 </DialogHeader>
 
                 <div className="py-4 space-y-3.5">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="new-user-name" className="text-xs font-medium">Full Name</Label>
-                    <Input
-                      id="new-user-name"
-                      placeholder="e.g. Kasun Perera"
-                      value={userName}
-                      onChange={(e) => setUserName(e.target.value)}
-                      required
-                      className="text-xs"
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="new-user-first-name" className="text-xs font-medium">First Name</Label>
+                      <Input
+                        id="new-user-first-name"
+                        placeholder="e.g. Kasun"
+                        value={userFirstName}
+                        onChange={(e) => setUserFirstName(e.target.value)}
+                        required
+                        className="text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="new-user-last-name" className="text-xs font-medium">Last Name</Label>
+                      <Input
+                        id="new-user-last-name"
+                        placeholder="e.g. Perera"
+                        value={userLastName}
+                        onChange={(e) => setUserLastName(e.target.value)}
+                        required
+                        className="text-xs"
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
@@ -581,18 +597,23 @@ export function AdminDashboard({
                   <div className="space-y-1.5">
                     <Label htmlFor="new-user-role" className="text-xs font-medium">Assigned Role</Label>
                     <Select value={userRole} onValueChange={(v) => v && setUserRole(v as "USER" | "ADMIN")}>
-                      <SelectTrigger id="new-user-role" className="text-xs">
+                      <SelectTrigger id="new-user-role" className="w-full text-xs">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="w-full min-w-[300px]">
                         <SelectItem value="USER" className="text-xs">
-                          Engineering Member (USER) — Booking privileges
+                          Engineering Member (USER)
                         </SelectItem>
                         <SelectItem value="ADMIN" className="text-xs">
-                          Platform Administrator (ADMIN) — Full approvals & user management
+                          Platform Administrator (ADMIN)
                         </SelectItem>
                       </SelectContent>
                     </Select>
+                    <p className="text-[11px] text-muted-foreground pt-0.5">
+                      {userRole === "ADMIN"
+                        ? "Platform Administrator: Full approvals, resource config, and user management access."
+                        : "Engineering Member: Standard resource reservations and booking access."}
+                    </p>
                   </div>
                 </div>
 

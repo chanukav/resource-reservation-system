@@ -40,6 +40,7 @@ export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -282,18 +283,17 @@ export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
 
                   {/* Account Settings, Change Password & Sign Out */}
                   <div className="space-y-0.5">
-                    <ChangePasswordModal
-                      trigger={
-                        <button
-                          type="button"
-                          onClick={() => setDropdownOpen(false)}
-                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer text-left"
-                        >
-                          <KeyRound className="h-4 w-4 text-emerald-600" />
-                          <span>Change Password</span>
-                        </button>
-                      }
-                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        setChangePasswordModalOpen(true);
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer text-left"
+                    >
+                      <KeyRound className="h-4 w-4 text-emerald-600" />
+                      <span>Change Password</span>
+                    </button>
 
                     <Link
                       href="/login"
@@ -323,6 +323,12 @@ export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
                   </div>
                 </div>
               )}
+
+              {/* Controlled Change Password Modal - rendered outside the dropdown so it persists when menu closes */}
+              <ChangePasswordModal
+                open={changePasswordModalOpen}
+                onOpenChange={setChangePasswordModalOpen}
+              />
             </div>
           ) : pathname === "/login" ? null : (
             <div className="flex items-center gap-2">
