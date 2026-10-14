@@ -6,7 +6,7 @@ import {
   AdminResourceItem,
   AdminUserItem,
 } from "@/components/admin-dashboard";
-import { ShieldCheck, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
@@ -144,28 +144,39 @@ export default async function AdminPage() {
   const pendingCount = serializedReservations.filter((r) => r.status === "PENDING").length;
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/60 pb-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600">
-              <ShieldCheck className="h-5 w-5" />
+    <div className="container mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+      {/* Enterprise Admin Command Header */}
+      <div className="rounded-2xl border border-border/80 bg-gradient-to-r from-card via-card to-muted/30 p-5 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/60 border border-border/60 px-2 py-0.5 rounded">
+                ENTERPRISE // ADMIN CONSOLE
+              </span>
+              <span className="text-[11px] text-muted-foreground font-medium">
+                PrimeWave Reserve • Operations Governance
+              </span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground">
               Administrator Management Hub
             </h1>
+            <p className="text-xs text-muted-foreground">
+              Review pending reservation requests, maintain facility fleets, manage RBAC privileges, and monitor audit trails.
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Review pending reservations, manage organization facilities, and administer enterprise user accounts.
-          </p>
-        </div>
 
-        {pendingCount > 0 && (
-          <div className="inline-flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-400">
-            <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping" />
-            {pendingCount} reservation{pendingCount > 1 ? "s" : ""} require your review
-          </div>
-        )}
+          {pendingCount > 0 ? (
+            <div className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400 shadow-2xs">
+              <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+              <span>{pendingCount} review{pendingCount > 1 ? "s" : ""} required</span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 shadow-2xs">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span>Queue Cleared</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <AdminDashboard

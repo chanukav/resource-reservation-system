@@ -17,8 +17,10 @@ import {
   UserCheck,
   Loader2,
   ChevronDown,
+  KeyRound,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ChangePasswordModal } from "@/components/change-password-modal";
 
 interface NavbarProps {
   currentUser: SafeUser | null;
@@ -87,22 +89,37 @@ export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Brand */}
-        <div className="flex items-center gap-6">
+        {/* Brand & System Status */}
+        <div className="flex items-center gap-4">
           <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-90">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
               <Building2 className="h-5 w-5" />
             </div>
             <div className="flex flex-col">
-              <span className="font-semibold tracking-tight text-foreground text-base">
-                PrimeWave <span className="text-emerald-600">Reserve</span>
-              </span>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                Resource Management
+              <div className="flex items-center gap-2">
+                <span className="font-bold tracking-tight text-foreground text-sm">
+                  PRIMEWAVE <span className="text-emerald-600">RESERVE</span>
+                </span>
+                <span className="hidden md:inline-flex rounded border border-border/80 bg-muted/50 px-1.5 py-0.2 text-[9px] font-mono font-medium text-muted-foreground uppercase tracking-wider">
+                  v2.4 • LK-HQ
+                </span>
+              </div>
+              <span className="text-[10px] text-muted-foreground font-medium">
+                Facility & Asset Operations
               </span>
             </div>
           </Link>
 
+          {/* System Status Pill */}
+          <div className="hidden lg:flex items-center gap-2 border-l border-border/60 pl-4 text-[11px] text-muted-foreground">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
+            <span className="font-medium text-foreground/80">Systems Normal</span>
+            <span className="text-muted-foreground/60">•</span>
+            <span className="font-mono text-[10px] text-muted-foreground">Asia/Colombo (+05:30)</span>
+          </div>
         </div>
 
         {/* Floating Profile & Actions Component */}
@@ -263,8 +280,21 @@ export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
 
                   <div className="my-1.5 border-t border-border/60" />
 
-                  {/* Switch Account (Login Page) & Sign Out */}
+                  {/* Account Settings, Change Password & Sign Out */}
                   <div className="space-y-0.5">
+                    <ChangePasswordModal
+                      trigger={
+                        <button
+                          type="button"
+                          onClick={() => setDropdownOpen(false)}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer text-left"
+                        >
+                          <KeyRound className="h-4 w-4 text-emerald-600" />
+                          <span>Change Password</span>
+                        </button>
+                      }
+                    />
+
                     <Link
                       href="/login"
                       onClick={() => setDropdownOpen(false)}

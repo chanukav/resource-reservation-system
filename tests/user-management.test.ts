@@ -14,6 +14,8 @@ import {
   createUserAction,
   updateUserRoleAction,
   deleteUserAction,
+  changeOwnPasswordAction,
+  adminResetUserPasswordAction,
 } from "../src/actions/users";
 
 function assert(condition: boolean, testName: string) {
@@ -201,6 +203,147 @@ async function runUserManagementTests() {
 
   const deletedInDb = await prisma.user.findUnique({ where: { id: createdUser!.id } });
   assert(deletedInDb === null, "Deleted user is cleanly purged from database");
+
+  // --------------------------------------------------------------------------
+  // GROUP 4: User Password Self-Change & Admin Password Reset
+  // --------------------------------------------------------------------------
+  console.log("\nGroup 4: Password Change & Strong Password Validation");
+
+  // 14. Unauthenticated change rejected
+  process.env.TEST_AUTH_AS = "NONE";
+  const unauthChange = await changeOwnPasswordAction({
+    currentPassword: "Intern@123",
+    newPassword: "ValidNewPass#2026",
+    confirmPassword: "ValidNewPass#2026",
+  });
+  assert(
+    unauthChange.success === false && unauthChange.error?.includes("Authentication required") === true,
+    "changeOwnPasswordAction rejects unauthenticated visitors"
+  );
+
+  // 15. Incorrect current password rejected
+  delete process.env.TEST_AUTH_AS; // Authenticated as Intern
+  const badCurrentPass = await changeOwnPasswordAction({
+    currentPassword: "WrongCurrentPassword!1",
+    newPassword: "ValidNewPass#2026",
+    confirmPassword: "ValidNewPass#2026",
+  });
+  assert(
+    badCurrentPass.success === false && badCurrentPass.error?.includes("current password you provided is incorrect") === true,
+    "changeOwnPasswordAction rejects incorrect current password"
+  );
+
+  // 16. Weak password validations
+  const tooShort = await changeOwnPasswordAction({
+    currentPassword: "Intern@123",
+    newPassword: "Short!1",
+    confirmPassword: "Short!1",
+  });
+  assert(
+    tooShort.success === false && tooShort.error?.includes("at least 8 characters") === true,
+    "changeOwnPasswordAction enforces minimum 8 characters"
+  );
+
+  const missingUpper = await changeOwnPasswordAction({
+    currentPassword: "Intern@123",
+    newPassword: "nouppercase!123",
+    confirmPassword: "nouppercase!123",
+  });
+  assert(
+    missingUpper.success === false && missingUpper.error?.includes("uppercase letter") === true,
+    "changeOwnPasswordAction requires at least one uppercase letter"
+  );
+
+  const missingSpecial = await changeOwnPasswordAction({
+    currentPassword: "Intern@123",
+    newPassword: "NoSpecialChar123",
+    confirmPassword: "NoSpecialChar123",
+  });
+  assert(
+    missingSpecial.success === false && missingSpecial.error?.includes("special character") === true,
+    "changeOwnPasswordAction requires at least one special character"
+  );
+
+  // 17. Reusing identical current password rejected
+  const samePass = await changeOwnPasswordAction({
+    currentPassword: "Intern@123",
+    newPassword: "Intern@123",
+    confirmPassword: "Intern@123",
+  });
+  assert(
+    samePass.success === false && samePass.error?.includes("different from your current password") === true,
+    "changeOwnPasswordAction prevents reusing existing password"
+  );
+
+  // 18. Mismatched confirm password rejected
+  const mismatchPass = await changeOwnPasswordAction({
+    currentPassword: "Intern@123",
+    newPassword: "BrandNewPass#999",
+    confirmPassword: "BrandNewPass#888",
+  });
+  assert(
+    mismatchPass.success === false && mismatchPass.error?.includes("do not match") === true,
+    "changeOwnPasswordAction enforces password confirmation match"
+  );
+
+  // 19. Valid strong password change succeeds
+  const validChange = await changeOwnPasswordAction({
+    currentPassword: "Intern@123",
+    newPassword: "BrandNewPass#2026",
+    confirmPassword: "BrandNewPass#2026",
+  });
+  assert(validChange.success === true, "changeOwnPasswordAction succeeds with verified credentials & strong password");
+
+  // 20. Login with new password works, old password fails
+  const loginWithOld = await loginAction({
+    email: "intern@primewave.com",
+    password: "Intern@123",
+  });
+  assert(loginWithOld.success === false, "Old password is invalid after successful password change");
+
+  const loginWithNew = await loginAction({
+    email: "intern@primewave.com",
+    password: "BrandNewPass#2026",
+  });
+  assert(loginWithNew.success === true, "User successfully authenticates with new changed password");
+
+  // 21. Non-admin cannot invoke adminResetUserPasswordAction
+  const nonAdminReset = await adminResetUserPasswordAction({
+    targetUserId: admin.id,
+    newPassword: "AdminResetPass#2026",
+  });
+  assert(
+    nonAdminReset.success === false && nonAdminReset.error?.includes("Administrator privileges required") === true,
+    "adminResetUserPasswordAction strictly blocks non-admin users"
+  );
+
+  // 22. Admin reset with weak password rejected
+  process.env.TEST_AUTH_AS = "ADMIN";
+  const weakAdminReset = await adminResetUserPasswordAction({
+    targetUserId: intern.id,
+    newPassword: "weak",
+  });
+  assert(
+    weakAdminReset.success === false && weakAdminReset.error?.includes("at least 8 characters") === true,
+    "adminResetUserPasswordAction enforces strong password requirements"
+  );
+
+  // 23. Admin resets user password at user request
+  const validAdminReset = await adminResetUserPasswordAction({
+    targetUserId: intern.id,
+    newPassword: "Intern@123", // restore back to seed default
+  });
+  assert(
+    validAdminReset.success === true && validAdminReset.message?.includes("successfully updated") === true,
+    "adminResetUserPasswordAction allows administrator to reset user's password at user request"
+  );
+
+  // 24. Intern can login with reset password
+  const verifyRestoredLogin = await loginAction({
+    email: "intern@primewave.com",
+    password: "Intern@123",
+  });
+  assert(verifyRestoredLogin.success === true, "User can successfully login with the admin-reset password");
 
   delete process.env.TEST_AUTH_AS;
 

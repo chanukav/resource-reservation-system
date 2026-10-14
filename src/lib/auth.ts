@@ -126,6 +126,8 @@ export async function getCurrentUser(): Promise<SafeUser | null> {
       const emailToUse =
         process.env.TEST_AUTH_AS === "ADMIN"
           ? DEMO_PERSONAS.ADMIN.email
+          : process.env.TEST_AUTH_AS && process.env.TEST_AUTH_AS.includes("@")
+          ? process.env.TEST_AUTH_AS
           : DEMO_PERSONAS.INTERN.email;
 
       const fallbackUser = await prisma.user.findUnique({

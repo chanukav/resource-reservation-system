@@ -34,6 +34,7 @@ import {
   createUserAction,
   updateUserRoleAction,
   deleteUserAction,
+  adminResetUserPasswordAction,
 } from "@/actions/users";
 import { toast } from "sonner";
 import {
@@ -49,6 +50,12 @@ import {
   ShieldCheck,
   UserCheck,
   Trash2,
+  Search,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Check,
+  Sparkles,
 } from "lucide-react";
 import { ResourceStatus, ReservationStatus } from "@prisma/client";
 import {
@@ -154,7 +161,67 @@ export function AdminDashboard({
   const [deleteUserDialogOpen, setDeleteUserDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<AdminUserItem | null>(null);
 
+  // User search by email state
+  const [userSearchEmail, setUserSearchEmail] = useState("");
+
+  // Admin reset user password state
+  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
+  const [userForPasswordReset, setUserForPasswordReset] = useState<AdminUserItem | null>(null);
+  const [resetUserPassword, setResetUserPassword] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
+
+  const isResetPasswordStrong =
+    resetUserPassword.length >= 8 &&
+    /[A-Z]/.test(resetUserPassword) &&
+    /[a-z]/.test(resetUserPassword) &&
+    /[0-9]/.test(resetUserPassword) &&
+    /[^A-Za-z0-9]/.test(resetUserPassword);
+
+  const generateRandomStrongPassword = () => {
+    const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const lower = "abcdefghijkmnopqrstuvwxyz";
+    const nums = "23456789";
+    const special = "!@#$%^&*()_+";
+    let pwd = "";
+    pwd += upper[Math.floor(Math.random() * upper.length)];
+    pwd += lower[Math.floor(Math.random() * lower.length)];
+    pwd += nums[Math.floor(Math.random() * nums.length)];
+    pwd += special[Math.floor(Math.random() * special.length)];
+    const all = upper + lower + nums + special;
+    for (let i = 0; i < 8; i++) {
+      pwd += all[Math.floor(Math.random() * all.length)];
+    }
+    setResetUserPassword(pwd);
+  };
+
+  const handleAdminResetPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userForPasswordReset) return;
+
+    startTransition(async () => {
+      const res = await adminResetUserPasswordAction({
+        targetUserId: userForPasswordReset.id,
+        newPassword: resetUserPassword,
+      });
+
+      if (res.success) {
+        toast.success(res.message);
+        setResetPasswordDialogOpen(false);
+        setUserForPasswordReset(null);
+        setResetUserPassword("");
+      } else {
+        toast.error("Failed to reset password", { description: res.error });
+      }
+    });
+  };
+
   const pendingReservations = reservations.filter((r) => r.status === "PENDING");
+
+  const filteredUsers = users.filter((u) => {
+    const query = userSearchEmail.trim().toLowerCase();
+    if (!query) return true;
+    return u.email.toLowerCase().includes(query) || u.name.toLowerCase().includes(query);
+  });
 
   const handleApprove = (id: string) => {
     startTransition(async () => {
@@ -736,115 +803,200 @@ export function AdminDashboard({
       {/* TAB 4: USER MANAGEMENT */}
       {activeTab === "USERS" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold text-foreground">Enterprise User Directory</h3>
               <p className="text-xs text-muted-foreground">
                 Manage roles, provision new members, and inspect booking access privileges.
               </p>
             </div>
-            <span className="text-xs text-muted-foreground">
-              Total registered users: <strong>{users.length}</strong>
-            </span>
+
+            <div className="flex items-center gap-3">
+              {/* Search Users by Email Bar */}
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search by email..."
+                  value={userSearchEmail}
+                  onChange={(e) => setUserSearchEmail(e.target.value)}
+                  className="h-8.5 pl-8.5 pr-8 text-xs rounded-lg border-border/80 bg-background/90 focus-visible:ring-emerald-500/50 shadow-2xs"
+                />
+                {userSearchEmail && (
+                  <button
+                    type="button"
+                    onClick={() => setUserSearchEmail("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs cursor-pointer"
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline-block">
+                Total users: <strong>{users.length}</strong>
+              </span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {users.map((u) => {
-              const isCurrentAdmin = u.id === currentAdminId;
+          {filteredUsers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-card/40 py-12 text-center shadow-2xs">
+              <Search className="h-6 w-6 text-muted-foreground mb-2" />
+              <h4 className="text-sm font-semibold text-foreground">No users found</h4>
+              <p className="text-xs text-muted-foreground max-w-sm mt-1">
+                No user accounts matched the search query &quot;{userSearchEmail}&quot;.
+              </p>
+              <button
+                type="button"
+                onClick={() => setUserSearchEmail("")}
+                className="mt-3 text-xs font-semibold text-emerald-600 hover:text-emerald-700 underline underline-offset-4 cursor-pointer"
+              >
+                Clear search query
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-2xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-border/80 bg-muted/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <th className="py-3 px-4">User</th>
+                      <th className="py-3 px-4">Email Address</th>
+                      <th className="py-3 px-4">Role</th>
+                      <th className="py-3 px-4">Joined Date</th>
+                      <th className="py-3 px-4">Reservations</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {filteredUsers.map((u) => {
+                      const isCurrentAdmin = u.id === currentAdminId;
 
-              return (
-                <Card
-                  key={u.id}
-                  className={`border-border/80 shadow-xs transition-colors ${
-                    isCurrentAdmin ? "border-emerald-500/40 bg-emerald-500/[0.02]" : ""
-                  }`}
-                >
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted font-bold text-sm text-foreground">
-                          {u.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-foreground">{u.name}</span>
-                            {isCurrentAdmin && (
-                              <Badge className="text-[10px] px-1 py-0 bg-emerald-600 text-white">
-                                You
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground">{u.email}</p>
-                        </div>
-                      </div>
-
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] px-1.5 py-0.5 font-semibold ${
-                          u.role === "ADMIN"
-                            ? "border-emerald-500/40 text-emerald-600 bg-emerald-500/5"
-                            : "border-blue-500/40 text-blue-600 bg-blue-500/5"
-                        }`}
-                      >
-                        {u.role === "ADMIN" ? (
-                          <ShieldCheck className="h-3 w-3 mr-1" />
-                        ) : (
-                          <UserCheck className="h-3 w-3 mr-1" />
-                        )}
-                        {u.role}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/50">
-                      <span>Joined {formatOrgDate(new Date(u.createdAt))}</span>
-                      <span>Total bookings: {u._count.reservations}</span>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-1">
-                      {u.role === "USER" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 border-emerald-500/30"
-                          disabled={isPending}
-                          onClick={() => handleRoleChange(u.id, "ADMIN")}
+                      return (
+                        <tr
+                          key={u.id}
+                          className={`transition-colors hover:bg-muted/40 ${
+                            isCurrentAdmin ? "bg-emerald-500/[0.02]" : ""
+                          }`}
                         >
-                          <ShieldCheck className="h-3.5 w-3.5 mr-1" />
-                          Promote to Admin
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20 border-amber-500/30"
-                          disabled={isPending || isCurrentAdmin}
-                          title={isCurrentAdmin ? "You cannot revoke your own administrator role" : undefined}
-                          onClick={() => handleRoleChange(u.id, "USER")}
-                        >
-                          <UserCheck className="h-3.5 w-3.5 mr-1" />
-                          Demote to User
-                        </Button>
-                      )}
+                          {/* User Avatar & Name */}
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2.5">
+                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted font-bold text-xs text-foreground shrink-0 border border-border/60">
+                                {u.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-foreground text-xs">{u.name}</span>
+                                {isCurrentAdmin && (
+                                  <Badge className="text-[9px] px-1 py-0 bg-emerald-600 text-white font-medium">
+                                    You
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </td>
 
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        disabled={isPending || isCurrentAdmin}
-                        title={isCurrentAdmin ? "You cannot delete your own active account" : "Delete user"}
-                        onClick={() => {
-                          setUserToDelete(u);
-                          setDeleteUserDialogOpen(true);
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                          {/* Email Address */}
+                          <td className="py-3 px-4 text-muted-foreground font-mono text-[11px]">
+                            {u.email}
+                          </td>
+
+                          {/* Role Badge */}
+                          <td className="py-3 px-4">
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] px-2 py-0.5 font-semibold ${
+                                u.role === "ADMIN"
+                                  ? "border-emerald-500/40 text-emerald-600 bg-emerald-500/5"
+                                  : "border-blue-500/40 text-blue-600 bg-blue-500/5"
+                              }`}
+                            >
+                              {u.role === "ADMIN" ? (
+                                <ShieldCheck className="h-3 w-3 mr-1" />
+                              ) : (
+                                <UserCheck className="h-3 w-3 mr-1" />
+                              )}
+                              {u.role}
+                            </Badge>
+                          </td>
+
+                          {/* Joined Date */}
+                          <td className="py-3 px-4 text-muted-foreground text-[11px]">
+                            {formatOrgDate(new Date(u.createdAt))}
+                          </td>
+
+                          {/* Reservations Count */}
+                          <td className="py-3 px-4 text-muted-foreground text-[11px]">
+                            <span className="font-semibold text-foreground">{u._count.reservations}</span> bookings
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {u.role === "USER" ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2.5 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 border-emerald-500/30"
+                                  disabled={isPending}
+                                  onClick={() => handleRoleChange(u.id, "ADMIN")}
+                                >
+                                  <ShieldCheck className="h-3.5 w-3.5 mr-1" />
+                                  Promote to Admin
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2.5 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20 border-amber-500/30"
+                                  disabled={isPending || isCurrentAdmin}
+                                  title={isCurrentAdmin ? "You cannot revoke your own administrator role" : undefined}
+                                  onClick={() => handleRoleChange(u.id, "USER")}
+                                >
+                                  <UserCheck className="h-3.5 w-3.5 mr-1" />
+                                  Demote to User
+                                </Button>
+                              )}
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs text-foreground/80 hover:text-foreground border-border/70"
+                                disabled={isPending}
+                                title={`Reset password for ${u.name} at user request`}
+                                onClick={() => {
+                                  setUserForPasswordReset(u);
+                                  setResetUserPassword("");
+                                  setResetPasswordDialogOpen(true);
+                                }}
+                              >
+                                <KeyRound className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+                                Reset Pwd
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                disabled={isPending || isCurrentAdmin}
+                                title={isCurrentAdmin ? "You cannot delete your own active account" : "Delete user"}
+                                onClick={() => {
+                                  setUserToDelete(u);
+                                  setDeleteUserDialogOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -913,6 +1065,117 @@ export function AdminDashboard({
               Delete User
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ADMIN RESET USER PASSWORD MODAL */}
+      <Dialog open={resetPasswordDialogOpen} onOpenChange={setResetPasswordDialogOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <form onSubmit={handleAdminResetPassword}>
+            <DialogHeader>
+              <DialogTitle className="text-base font-semibold flex items-center gap-1.5 text-foreground">
+                <KeyRound className="h-4 w-4 text-emerald-600" />
+                Reset User Password
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Set a strong, secure replacement password for{" "}
+                <strong className="text-foreground">{userForPasswordReset?.name}</strong> (
+                {userForPasswordReset?.email}) upon user request.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="admin-new-password" className="text-xs font-medium">
+                  New Temporary or Permanent Password
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[11px] text-primary hover:text-primary/90 flex items-center gap-1"
+                  onClick={generateRandomStrongPassword}
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Generate Strong
+                </Button>
+              </div>
+
+              <div className="relative">
+                <Input
+                  id="admin-new-password"
+                  type={showResetPassword ? "text" : "password"}
+                  value={resetUserPassword}
+                  onChange={(e) => setResetUserPassword(e.target.value)}
+                  placeholder="Enter strong password..."
+                  className="pr-10 text-xs font-mono"
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-1 hover:bg-transparent text-muted-foreground"
+                  onClick={() => setShowResetPassword(!showResetPassword)}
+                >
+                  {showResetPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </Button>
+              </div>
+
+              {/* Password Requirements Checklist */}
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5 text-xs space-y-1.5">
+                <p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+                  Password Strength Requirements
+                </p>
+                <div className="grid grid-cols-1 gap-1 text-[11px]">
+                  <div className={`flex items-center gap-1.5 ${resetUserPassword.length >= 8 ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}`}>
+                    <Check className={`h-3 w-3 ${resetUserPassword.length >= 8 ? "opacity-100" : "opacity-30"}`} />
+                    <span>At least 8 characters</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 ${/[A-Z]/.test(resetUserPassword) ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}`}>
+                    <Check className={`h-3 w-3 ${/[A-Z]/.test(resetUserPassword) ? "opacity-100" : "opacity-30"}`} />
+                    <span>At least one uppercase letter (A-Z)</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 ${/[a-z]/.test(resetUserPassword) ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}`}>
+                    <Check className={`h-3 w-3 ${/[a-z]/.test(resetUserPassword) ? "opacity-100" : "opacity-30"}`} />
+                    <span>At least one lowercase letter (a-z)</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 ${/[0-9]/.test(resetUserPassword) ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}`}>
+                    <Check className={`h-3 w-3 ${/[0-9]/.test(resetUserPassword) ? "opacity-100" : "opacity-30"}`} />
+                    <span>At least one digit (0-9)</span>
+                  </div>
+                  <div className={`flex items-center gap-1.5 ${/[^A-Za-z0-9]/.test(resetUserPassword) ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}`}>
+                    <Check className={`h-3 w-3 ${/[^A-Za-z0-9]/.test(resetUserPassword) ? "opacity-100" : "opacity-30"}`} />
+                    <span>At least one special symbol (!@#$%^&*...)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setResetPasswordDialogOpen(false);
+                  setUserForPasswordReset(null);
+                  setResetUserPassword("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                disabled={isPending || !isResetPasswordStrong}
+              >
+                {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                Update Password
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

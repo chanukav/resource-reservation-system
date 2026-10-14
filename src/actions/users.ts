@@ -7,13 +7,17 @@ import {
   createUserSchema,
   updateUserRoleSchema,
   deleteUserSchema,
+  changeOwnPasswordSchema,
+  adminResetUserPasswordSchema,
   CreateUserInput,
   UpdateUserRoleInput,
   DeleteUserInput,
+  ChangeOwnPasswordInput,
+  AdminResetUserPasswordInput,
   formatZodError,
   sanitizeServerError,
 } from "@/lib/validations";
-import { hashPassword } from "@/lib/password";
+import { hashPassword, verifyPassword } from "@/lib/password";
 import { Role } from "@prisma/client";
 
 function safeRevalidatePath(path: string) {
@@ -215,3 +219,104 @@ export async function deleteUserAction(formData: DeleteUserInput): Promise<Actio
     };
   }
 }
+
+/**
+ * Allows any authenticated user to change their own password.
+ * Requires: current password verification + strong password validation.
+ */
+export async function changeOwnPasswordAction(formData: ChangeOwnPasswordInput): Promise<ActionResult> {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { success: false, error: "Authentication required to change your password." };
+    }
+
+    const parsed = changeOwnPasswordSchema.safeParse(formData);
+    if (!parsed.success) {
+      return { success: false, error: formatZodError(parsed.error) };
+    }
+
+    const { currentPassword, newPassword } = parsed.data;
+
+    // Fetch user from DB to verify current password hash
+    const user = await prisma.user.findUnique({
+      where: { id: currentUser.id },
+    });
+
+    if (!user) {
+      return { success: false, error: "User account could not be found." };
+    }
+
+    const isCurrentValid = verifyPassword(currentPassword, user.passwordHash);
+    if (!isCurrentValid) {
+      return { success: false, error: "The current password you provided is incorrect." };
+    }
+
+    const newPasswordHash = hashPassword(newPassword);
+
+    await prisma.user.update({
+      where: { id: currentUser.id },
+      data: { passwordHash: newPasswordHash },
+    });
+
+    return {
+      success: true,
+      message: "Your password has been changed successfully.",
+    };
+  } catch (error) {
+    console.error("changeOwnPasswordAction error:", error);
+    return {
+      success: false,
+      error: sanitizeServerError(error, "Failed to update password."),
+    };
+  }
+}
+
+/**
+ * Allows an Administrator to reset another user's password at the user's request.
+ * RESTRICTED: Administrator privileges strictly required.
+ */
+export async function adminResetUserPasswordAction(formData: AdminResetUserPasswordInput): Promise<ActionResult> {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser || currentUser.role !== "ADMIN") {
+      return { success: false, error: "Administrator privileges required to reset another user's password." };
+    }
+
+    const parsed = adminResetUserPasswordSchema.safeParse(formData);
+    if (!parsed.success) {
+      return { success: false, error: formatZodError(parsed.error) };
+    }
+
+    const { targetUserId, newPassword } = parsed.data;
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+    });
+
+    if (!targetUser) {
+      return { success: false, error: "Target user not found." };
+    }
+
+    const newPasswordHash = hashPassword(newPassword);
+
+    await prisma.user.update({
+      where: { id: targetUserId },
+      data: { passwordHash: newPasswordHash },
+    });
+
+    safeRevalidatePath("/admin");
+
+    return {
+      success: true,
+      message: `Password for ${targetUser.name} (${targetUser.email}) has been successfully updated.`,
+    };
+  } catch (error) {
+    console.error("adminResetUserPasswordAction error:", error);
+    return {
+      success: false,
+      error: sanitizeServerError(error, "Failed to reset user password."),
+    };
+  }
+}
+

@@ -251,6 +251,49 @@ export const deleteUserSchema = z.object({
 export type DeleteUserInput = z.infer<typeof deleteUserSchema>;
 
 // ----------------------------------------------------
+// PASSWORD VALIDATION SCHEMAS
+// ----------------------------------------------------
+
+export const strongPasswordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters long")
+  .max(100, "Password cannot exceed 100 characters")
+  .refine((val) => /[A-Z]/.test(val), {
+    message: "Password must contain at least one uppercase letter (A-Z)",
+  })
+  .refine((val) => /[a-z]/.test(val), {
+    message: "Password must contain at least one lowercase letter (a-z)",
+  })
+  .refine((val) => /[0-9]/.test(val), {
+    message: "Password must contain at least one number (0-9)",
+  })
+  .refine((val) => /[^A-Za-z0-9]/.test(val), {
+    message: "Password must contain at least one special character (!@#$%^&*...)",
+  });
+
+export const changeOwnPasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required"),
+    newPassword: strongPasswordSchema,
+    confirmPassword: z.string().min(1, "Please confirm your new password"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "New password and confirmation password do not match",
+    path: ["confirmPassword"],
+  })
+  .refine((data) => data.currentPassword !== data.newPassword, {
+    message: "New password must be different from your current password",
+    path: ["newPassword"],
+  });
+export type ChangeOwnPasswordInput = z.infer<typeof changeOwnPasswordSchema>;
+
+export const adminResetUserPasswordSchema = z.object({
+  targetUserId: z.string().trim().min(1, "Target user ID cannot be empty"),
+  newPassword: strongPasswordSchema,
+});
+export type AdminResetUserPasswordInput = z.infer<typeof adminResetUserPasswordSchema>;
+
+// ----------------------------------------------------
 // SAFE ERROR UTILITIES
 // ----------------------------------------------------
 
