@@ -73,55 +73,101 @@ export function ResourceCatalog({ resources, categories }: ResourceCatalogProps)
     <div className="space-y-6">
       {/* Search & Category Filter Bar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        {/* Category Pills */}
-        <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+        {/* Category Filter Pills */}
+        <div className="flex flex-wrap items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
           <button
+            type="button"
             onClick={() => setSelectedCategory("ALL")}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
               selectedCategory === "ALL"
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+                ? "bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/25"
+                : "border border-border/80 bg-card/80 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
             }`}
           >
-            All Resources ({resources.length})
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                selectedCategory === cat.id
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+            <span>All Facilities</span>
+            <span
+              className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                selectedCategory === "ALL"
+                  ? "bg-white/20 text-white"
+                  : "bg-muted text-muted-foreground"
               }`}
             >
-              {cat.name} ({cat._count.resources})
-            </button>
-          ))}
+              {resources.length}
+            </span>
+          </button>
+
+          {categories.map((cat) => {
+            const isSelected = selectedCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                  isSelected
+                    ? "bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/25"
+                    : "border border-border/80 bg-card/80 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                }`}
+              >
+                <span>{cat.name}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                    isSelected
+                      ? "bg-white/20 text-white"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {cat._count.resources}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Search Input */}
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        {/* Search Input Bar */}
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by name or location..."
+            placeholder="Search by name, location..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-9 pl-8 text-xs"
+            className="h-9.5 pl-9 pr-8 text-xs rounded-xl border-border/80 bg-card/80 focus-visible:ring-emerald-500/50 shadow-2xs"
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted text-xs cursor-pointer"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
       {/* Grid of Resources */}
       {filteredResources.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
-          <div className="rounded-full bg-muted p-3 text-muted-foreground mb-3">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-card/40 py-16 text-center shadow-2xs">
+          <div className="rounded-2xl bg-muted/60 p-3.5 text-muted-foreground mb-3">
             <Search className="h-6 w-6" />
           </div>
           <h3 className="text-base font-semibold text-foreground">No resources found</h3>
           <p className="text-xs text-muted-foreground max-w-sm mt-1">
-            Try adjusting your search terms or selecting a different category filter.
+            We couldn&apos;t find anything matching your filter criteria. Try clearing your search or switching categories.
           </p>
+          {(searchQuery || selectedCategory !== "ALL") && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery("");
+                setSelectedCategory("ALL");
+              }}
+              className="mt-4 text-xs font-semibold text-emerald-600 hover:text-emerald-700 underline underline-offset-4 cursor-pointer"
+            >
+              Reset all filters
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -140,11 +186,14 @@ export function ResourceCatalog({ resources, categories }: ResourceCatalogProps)
             return (
               <Card
                 key={resource.id}
-                className="flex flex-col justify-between overflow-hidden border border-border/70 transition-all hover:shadow-md hover:border-border"
+                className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-card/90 shadow-2xs transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-emerald-500/40"
               >
                 <CardHeader className="space-y-3 pb-3">
                   <div className="flex items-start justify-between gap-2">
-                    <Badge variant="secondary" className="text-[11px] font-medium bg-muted">
+                    <Badge
+                      variant="secondary"
+                      className="text-[11px] font-semibold bg-muted/70 text-foreground/80 px-2.5 py-0.5 rounded-full"
+                    >
                       {resource.category.name}
                     </Badge>
                     <div className="flex flex-col items-end gap-1">
@@ -189,7 +238,7 @@ export function ResourceCatalog({ resources, categories }: ResourceCatalogProps)
                   </div>
 
                   <div>
-                    <h3 className="font-semibold text-foreground text-base tracking-tight leading-snug">
+                    <h3 className="font-bold text-foreground text-base tracking-tight leading-snug group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                       {resource.name}
                     </h3>
                     {resource.description && (
@@ -200,45 +249,62 @@ export function ResourceCatalog({ resources, categories }: ResourceCatalogProps)
                   </div>
                 </CardHeader>
 
-                <CardContent className="space-y-2.5 pb-3 text-xs text-muted-foreground">
-                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                <CardContent className="space-y-3 pb-3 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
                     {resource.location && (
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5 text-muted-foreground/80 shrink-0" />
-                        <span>{resource.location}</span>
+                      <div className="inline-flex items-center gap-1.5 rounded-lg bg-muted/40 border border-border/50 px-2 py-1 text-[11px]">
+                        <MapPin className="h-3 w-3 text-emerald-600 shrink-0" />
+                        <span className="font-medium text-foreground/80">{resource.location}</span>
                       </div>
                     )}
-                    <div className="flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5 text-muted-foreground/80 shrink-0" />
-                      <span>
-                        Capacity: {resource.capacity} {resource.capacity > 1 ? "people" : "unit"}
+                    <div className="inline-flex items-center gap-1.5 rounded-lg bg-muted/40 border border-border/50 px-2 py-1 text-[11px]">
+                      <Users className="h-3 w-3 text-emerald-600 shrink-0" />
+                      <span className="font-medium text-foreground/80">
+                        {resource.capacity} {resource.capacity > 1 ? "people" : "unit"} max
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-1 border-t border-border/50 text-[11px]">
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <Clock className="h-3 w-3" />
+                  <div className="flex items-center justify-between pt-2 border-t border-border/50 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Clock className="h-3 w-3 text-muted-foreground/80" />
                       <span>
                         {isOccupiedNow
                           ? `Occupied until ${formatOrgTime(currentActiveBooking!.endTime)}`
                           : upcomingCount > 0
-                          ? `${upcomingCount} upcoming booking${upcomingCount > 1 ? "s" : ""}`
-                          : "Free for booking"}
+                          ? `${upcomingCount} upcoming slot${upcomingCount > 1 ? "s" : ""}`
+                          : "Free for immediate booking"}
                       </span>
                     </div>
                     {resource.requiresApproval ? (
-                      <span className="text-amber-600/90 font-medium">Requires approval</span>
+                      <span className="text-amber-600/90 font-medium text-[10px] bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-md">
+                        Requires approval
+                      </span>
                     ) : (
-                      <span className="text-emerald-600/90 font-medium flex items-center gap-0.5">
-                        <Sparkles className="h-3 w-3" /> Auto-approves
+                      <span className="text-emerald-600 font-medium text-[10px] bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                        <Sparkles className="h-2.5 w-2.5" /> Instant
                       </span>
                     )}
                   </div>
                 </CardContent>
 
                 <CardFooter className="pt-2">
-                  <ReserveModal resource={resource} />
+                  <ReserveModal
+                    resource={resource}
+                    triggerButton={
+                      <button
+                        type="button"
+                        disabled={!isOperational}
+                        className={`w-full flex items-center justify-center gap-1.5 py-2 px-4 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                          isOperational
+                            ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs hover:shadow-sm active:scale-[0.99]"
+                            : "bg-muted text-muted-foreground border border-border/60 cursor-not-allowed opacity-60"
+                        }`}
+                      >
+                        {isOperational ? "Reserve Resource" : "Currently Unavailable"}
+                      </button>
+                    }
+                  />
                 </CardFooter>
               </Card>
             );

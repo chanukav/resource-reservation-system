@@ -130,36 +130,9 @@ export function Navbar({ currentUser, pendingCount = 0 }: NavbarProps) {
             </div>
           </Link>
 
-          {/* Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1 pl-4">
-            {visibleLinks.map((link) => {
-              const Icon = link.icon;
-              const isActive = pathname === link.href;
-
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-muted text-foreground"
-                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{link.label}</span>
-                  {link.badge && (
-                    <Badge variant="destructive" className="h-5 px-1.5 text-xs">
-                      {link.badge}
-                    </Badge>
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
         </div>
 
-        {/* Authentication & Floating Profile Component */}
+        {/* Floating Profile & Actions Component */}
         <div className="flex items-center gap-3">
           {currentUser ? (
             <div className="relative" ref={dropdownRef}>
