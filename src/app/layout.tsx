@@ -54,7 +54,7 @@ export default async function RootLayout({
             PrimeWave Lab (Pvt) Ltd • Resource Reservation Management System • Technical Assessment
           </div>
         </footer>
-        <Toaster position="top-right" richColors />
+        <Toaster position="bottom-right" richColors />
       </body>
     </html>
   );

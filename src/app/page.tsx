@@ -1,10 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { ResourceCatalog, SerializedResource, SerializedCategory } from "@/components/resource-catalog";
-import { Building2, CalendarCheck2, Layers, CheckCircle2 } from "lucide-react";
+import { Building2, CalendarCheck2, Layers, CheckCircle2, ShieldCheck, UserCheck } from "lucide-react";
+import { redirect } from "next/navigation";
+import Link from "next/link";
 
 export default async function HomePage() {
   const currentUser = await getCurrentUser();
+
+  if (!currentUser) {
+    redirect("/login");
+  }
 
   // Fetch categories with resource counts
   const categoriesRaw = await prisma.resourceCategory.findMany({
@@ -104,10 +110,33 @@ export default async function HomePage() {
             Resource Reservation Management
           </h1>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Welcome back, <span className="font-medium text-foreground">{currentUser?.name}</span>.
+            Welcome back, <span className="font-medium text-foreground">{currentUser.name}</span>.
             Browse shared meeting rooms, media kits, and lab workstations with real-time schedule
             transparency and guaranteed double-booking prevention.
           </p>
+
+          {/* Explicit Role Privileges Banner */}
+          {currentUser.role === "ADMIN" ? (
+            <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-800 dark:text-emerald-300">
+              <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+              <span>
+                <strong>Administrator Access:</strong> Full authority to approve/reject bookings, manage resources, and configure user permissions.
+              </span>
+              <Link
+                href="/admin"
+                className="font-semibold underline ml-1 text-emerald-700 dark:text-emerald-300 hover:text-emerald-900"
+              >
+                Open Admin Hub &rarr;
+              </Link>
+            </div>
+          ) : (
+            <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs text-blue-800 dark:text-blue-300">
+              <UserCheck className="h-4 w-4 text-blue-600 shrink-0" />
+              <span>
+                <strong>Standard User Access:</strong> Browse facilities, check schedules, and reserve assets. Administrative controls are restricted to administrators.
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Live Metric Badges */}
