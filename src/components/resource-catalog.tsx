@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -23,6 +23,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { formatOrgTime } from "@/lib/date-utils";
+import { getAssetCode } from "@/lib/resource-utils";
+import { scrollToResourceCard } from "@/lib/client-utils";
 
 export type SerializedResource = {
   id: string;
@@ -62,17 +64,6 @@ interface ResourceCatalogProps {
   onSelectCategory?: (id: string) => void;
 }
 
-function getAssetCode(categoryName: string, id: string) {
-  let prefix = "AST";
-  const lower = categoryName.toLowerCase();
-  if (lower.includes("conference") || lower.includes("meeting")) prefix = "CR";
-  else if (lower.includes("workstation") || lower.includes("lab")) prefix = "WS";
-  else if (lower.includes("media") || lower.includes("production") || lower.includes("hardware") || lower.includes("equipment")) prefix = "EQ";
-  else if (lower.includes("training") || lower.includes("workshop") || lower.includes("collaboration")) prefix = "TR";
-  else if (lower.includes("presentation") || lower.includes("shared it") || lower.includes("it")) prefix = "IT";
-  const num = Math.abs(id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 900) + 100;
-  return `${prefix}-${num}`;
-}
 
 function getCategoryVisual(name: string) {
   const l = name.toLowerCase();
@@ -121,6 +112,63 @@ export function ResourceCatalog({
   const [availabilityFilter, setAvailabilityFilter] = useState<"ALL" | "VACANT" | "INSTANT">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+
+  // Synchronize with URL search parameter & global header search events
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const q = urlParams.get("q");
+      const target = urlParams.get("target");
+      if (q) {
+        setSearchQuery(q);
+      }
+      if (target) {
+        setSelectedCategory("ALL");
+        setAvailabilityFilter("ALL");
+        setTimeout(() => {
+          scrollToResourceCard(target);
+        }, 300);
+        setTimeout(() => {
+          scrollToResourceCard(target);
+        }, 600);
+      }
+    }
+
+    const handleSearchChange = (e: any) => {
+      if (typeof e.detail?.query === "string") {
+        setSearchQuery(e.detail.query);
+      }
+      if (e.detail?.targetResourceId) {
+        setSelectedCategory("ALL");
+        setAvailabilityFilter("ALL");
+        setTimeout(() => {
+          scrollToResourceCard(e.detail.targetResourceId);
+        }, 150);
+        setTimeout(() => {
+          scrollToResourceCard(e.detail.targetResourceId);
+        }, 400);
+      }
+    };
+
+    window.addEventListener("catalog-search-change", handleSearchChange);
+    return () => {
+      window.removeEventListener("catalog-search-change", handleSearchChange);
+    };
+  }, []);
+
+  const handleInternalSearchChange = (newVal: string) => {
+    setSearchQuery(newVal);
+    window.dispatchEvent(new CustomEvent("header-search-sync", { detail: { query: newVal } }));
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (newVal.trim()) {
+        url.searchParams.set("q", newVal);
+      } else {
+        url.searchParams.delete("q");
+      }
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
 
   const now = new Date();
 
@@ -289,13 +337,13 @@ export function ResourceCatalog({
             <Input
               placeholder="Search by asset tag (e.g. CR-101), name, or location..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleInternalSearchChange(e.target.value)}
               className="h-8.5 pl-8 pr-8 text-xs rounded-lg border-border/80 bg-background/80 focus-visible:ring-emerald-500/50 shadow-2xs"
             />
             {searchQuery && (
               <button
                 type="button"
-                onClick={() => setSearchQuery("")}
+                onClick={() => handleInternalSearchChange("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs cursor-pointer"
                 title="Clear search"
               >
@@ -328,7 +376,7 @@ export function ResourceCatalog({
             <button
               type="button"
               onClick={() => {
-                setSearchQuery("");
+                handleInternalSearchChange("");
                 setSelectedCategory("ALL");
                 setAvailabilityFilter("ALL");
               }}
@@ -357,6 +405,7 @@ export function ResourceCatalog({
             return (
               <Card
                 key={resource.id}
+                id={`resource-card-${resource.id}`}
                 className="group flex flex-col justify-between overflow-hidden rounded-3xl border border-border/80 bg-white dark:bg-card shadow-xs transition-all duration-200 hover:border-emerald-500/50 hover:shadow-lg"
               >
                 <CardHeader className="space-y-3 p-5 pb-3">
@@ -507,6 +556,7 @@ export function ResourceCatalog({
                   return (
                     <tr
                       key={resource.id}
+                      id={`resource-row-${resource.id}`}
                       className="transition-colors hover:bg-muted/40 group"
                     >
                       <td className="py-3 px-4 font-mono font-bold text-muted-foreground text-[11px]">

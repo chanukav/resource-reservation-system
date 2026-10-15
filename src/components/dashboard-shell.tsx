@@ -20,12 +20,19 @@ import {
   Menu,
   X,
   Sparkles,
+  MapPin,
+  Users,
+  Clock,
+  ArrowRight,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ChangePasswordModal } from "@/components/change-password-modal";
 import { SupportModal } from "@/components/support-modal";
 import { LottiePlayer } from "@/components/ui/lottie-player";
 import { NotificationsPopover } from "@/components/notifications-popover";
+import { scrollToResourceCard } from "@/lib/client-utils";
 
 interface DashboardShellProps {
   currentUser: SafeUser | null;
@@ -55,7 +62,164 @@ export function DashboardShell({
   const [supportModalOpen, setSupportModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchVal, setSearchVal] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Synchronize search input with URL search param on mount & with catalog internal search
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const q = urlParams.get("q");
+      if (q) {
+        setSearchVal(q);
+      }
+    }
+
+    const handleSync = (e: any) => {
+      if (typeof e.detail?.query === "string") {
+        setSearchVal(e.detail.query);
+      }
+    };
+    window.addEventListener("header-search-sync", handleSync);
+    return () => {
+      window.removeEventListener("header-search-sync", handleSync);
+    };
+  }, []);
+
+  // Click outside search container & escape key listener
+  useEffect(() => {
+    function handleDocClick(event: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setSearchDropdownOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSearchDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleDocClick);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleDocClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  const handleSearchInput = (val: string) => {
+    setSearchVal(val);
+
+    // 1. Instantly dispatch custom event to filter the catalog live on the current page
+    window.dispatchEvent(
+      new CustomEvent("catalog-search-change", { detail: { query: val } })
+    );
+
+    // 2. Sync URL query parameter if on dashboard
+    if (typeof window !== "undefined" && pathname === "/") {
+      const url = new URL(window.location.href);
+      if (val.trim()) {
+        url.searchParams.set("q", val);
+      } else {
+        url.searchParams.delete("q");
+      }
+      window.history.replaceState({}, "", url.toString());
+    }
+
+    // 3. Debounce live search dropdown fetch
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    if (!val.trim()) {
+      setSearchResults([]);
+      setSearchDropdownOpen(false);
+      setSearchLoading(false);
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchDropdownOpen(true);
+
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/resources/search?q=${encodeURIComponent(val.trim())}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data.results || []);
+        }
+      } catch (err) {
+        console.error("Live search fetch error:", err);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 180);
+  };
+
+  const handleClearSearch = () => {
+    setSearchVal("");
+    setSearchResults([]);
+    setSearchDropdownOpen(false);
+    setSearchLoading(false);
+    window.dispatchEvent(
+      new CustomEvent("catalog-search-change", { detail: { query: "" } })
+    );
+    if (typeof window !== "undefined" && pathname === "/") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("q");
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
+
+  const handleSelectSearchResult = (item: any) => {
+    setSearchDropdownOpen(false);
+    setSearchVal(item.name);
+
+    if (pathname === "/") {
+      // 1. Dispatch event with targetResourceId and query to ensure the catalog renders and resets any restricting filters
+      window.dispatchEvent(
+        new CustomEvent("catalog-search-change", {
+          detail: {
+            query: item.name,
+            targetResourceId: item.id,
+            categoryId: item.categoryId,
+          },
+        })
+      );
+
+      // 2. Sync URL query params
+      const url = new URL(window.location.href);
+      url.searchParams.set("q", item.name);
+      url.searchParams.set("target", item.id);
+      window.history.replaceState({}, "", url.toString());
+
+      // 3. Staggered scroll to ensure DOM element is ready after React re-render
+      setTimeout(() => {
+        scrollToResourceCard(item.id);
+      }, 100);
+      setTimeout(() => {
+        scrollToResourceCard(item.id);
+      }, 350);
+    } else {
+      router.push(`/?target=${item.id}&q=${encodeURIComponent(item.name)}#catalog-section`);
+    }
+  };
+
+  const handleSearchSubmit = () => {
+    setSearchDropdownOpen(false);
+    if (searchResults.length === 1) {
+      handleSelectSearchResult(searchResults[0]);
+      return;
+    }
+    if (pathname !== "/") {
+      router.push(`/?q=${encodeURIComponent(searchVal)}#catalog-section`);
+    } else {
+      document.getElementById("catalog-section")?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -165,6 +329,34 @@ export function DashboardShell({
 
           {/* Navigation Menu */}
           <nav className={`space-y-1.5 lg:block ${mobileMenuOpen ? "block" : "hidden lg:block"}`}>
+            {/* Mobile Search Bar */}
+            <div className="lg:hidden mb-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search facilities..."
+                  value={searchVal}
+                  onChange={(e) => handleSearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setMobileMenuOpen(false);
+                      handleSearchSubmit();
+                    }
+                  }}
+                  className="h-9 w-full rounded-2xl border border-border/80 bg-muted/40 pl-9 pr-8 text-xs placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                />
+                {searchVal && (
+                  <button
+                    type="button"
+                    onClick={handleClearSearch}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            </div>
             {/* Dashboard Link */}
             <Link
               href="/"
@@ -311,28 +503,146 @@ export function DashboardShell({
             </div>
           </div>
 
-          {/* Center Search Input (UX Enhancement) */}
-          <div className="hidden md:flex items-center relative w-64 lg:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          {/* Center Search Input with Instant Dropdown and Catalog Sync */}
+          <div ref={searchContainerRef} className="hidden md:flex items-center relative w-64 lg:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <input
               type="text"
               placeholder="Search facilities, catalog..."
               value={searchVal}
-              onChange={(e) => setSearchVal(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  if (pathname !== "/") {
-                    router.push("/#catalog-section");
-                  } else {
-                    document.getElementById("catalog-section")?.scrollIntoView({ behavior: "smooth" });
-                  }
+              onFocus={() => {
+                if (searchVal.trim().length > 0 && searchResults.length > 0) {
+                  setSearchDropdownOpen(true);
                 }
               }}
-              className="h-9 w-full rounded-full border border-border/80 bg-muted/40 pl-9 pr-9 text-xs placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all"
+              onChange={(e) => handleSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleSearchSubmit();
+                }
+              }}
+              className="h-9 w-full rounded-full border border-border/80 bg-muted/40 pl-9 pr-14 text-xs placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/60 focus:bg-background transition-all"
             />
-            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-border/70 bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground font-semibold">
-              ↵
-            </kbd>
+            
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {searchVal && (
+                <button
+                  type="button"
+                  onClick={handleClearSearch}
+                  className="h-5 w-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted text-xs cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              <kbd className="hidden sm:inline-block rounded border border-border/70 bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground font-semibold">
+                ↵
+              </kbd>
+            </div>
+
+            {/* Live Autocomplete Dropdown */}
+            {searchDropdownOpen && (
+              <div className="absolute left-0 right-0 top-full mt-2 rounded-2xl border border-border/80 bg-popover text-popover-foreground shadow-2xl p-2 z-50 animate-in fade-in-0 zoom-in-95 backdrop-blur-md">
+                <div className="px-3 py-1.5 text-[11px] font-bold text-muted-foreground flex items-center justify-between border-b border-border/50 pb-2 mb-1">
+                  <span>Facility Matches ({searchResults.length})</span>
+                  {searchLoading && (
+                    <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-normal">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Searching...
+                    </span>
+                  )}
+                </div>
+
+                {searchLoading && searchResults.length === 0 ? (
+                  <div className="py-6 flex flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                    <span>Searching facility catalog...</span>
+                  </div>
+                ) : searchResults.length === 0 ? (
+                  <div className="py-6 px-4 text-center text-xs text-muted-foreground">
+                    <p className="font-semibold text-foreground">No facilities found</p>
+                    <p className="text-[11px] mt-0.5 text-muted-foreground">
+                      No matching resource for &ldquo;{searchVal}&rdquo;
+                    </p>
+                  </div>
+                ) : (
+                  <div className="max-h-72 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
+                    {searchResults.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSelectSearchResult(item)}
+                        className="w-full text-left p-2.5 rounded-xl hover:bg-muted/70 transition-all flex items-center justify-between gap-3 group cursor-pointer border border-transparent hover:border-border/60"
+                      >
+                        <div className="min-w-0 space-y-0.5 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/50">
+                              {item.assetCode}
+                            </span>
+                            <span className="text-xs font-bold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
+                              {item.name}
+                            </span>
+                            {item.requiresApproval && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 shrink-0">
+                                Approval Req.
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground truncate">
+                            <span className="truncate">{item.categoryName}</span>
+                            {item.location && (
+                              <>
+                                <span>•</span>
+                                <span className="truncate flex items-center gap-0.5">
+                                  <MapPin className="h-2.5 w-2.5 shrink-0" />
+                                  {item.location}
+                                </span>
+                              </>
+                            )}
+                            <span>•</span>
+                            <span className="shrink-0">{item.capacity} max</span>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 flex items-center gap-2">
+                          {item.isOperational ? (
+                            item.isOccupiedNow ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 dark:text-blue-400 bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 rounded-full">
+                                <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                Occupied
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                Vacant Now
+                              </span>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                              Maintenance
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Footer action */}
+                <div className="p-2 border-t border-border/50 mt-1 flex items-center justify-between text-[11px] text-muted-foreground bg-muted/30 rounded-xl">
+                  <span>
+                    Press <kbd className="px-1 py-0.5 rounded border border-border/70 bg-background font-mono text-[10px]">↵</kbd> to filter catalog
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSearchSubmit}
+                    className="font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    View in catalog <ArrowRight className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right Tools: Messages, Notifications, Profile */}
@@ -473,7 +783,7 @@ export function DashboardShell({
         </header>
 
         {/* Dynamic Page Content - ONLY THIS MIDDLE CONTENT SCROLLS */}
-        <main className="flex-1 overflow-y-auto p-5 sm:p-7 lg:p-8 bg-slate-50/50 dark:bg-background focus:outline-none">
+        <main id="dashboard-main-scroll" className="flex-1 overflow-y-auto p-5 sm:p-7 lg:p-8 bg-slate-50/50 dark:bg-background focus:outline-none scroll-smooth">
           <div className="max-w-[1600px] mx-auto w-full">
             {children}
           </div>
