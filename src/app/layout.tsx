@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Navbar } from "@/components/navbar";
+import { DashboardShell } from "@/components/dashboard-shell";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Toaster } from "@/components/ui/sonner";
@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PrimeWave Reserve | Resource Reservation Management System",
+  title: "PrimeWave Reserve | Enterprise Resource Management",
   description:
     "Centralized resource reservation and scheduling management platform built for PrimeWave Lab.",
 };
@@ -46,14 +46,10 @@ export default async function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
-        <Navbar currentUser={currentUser} pendingCount={pendingCount} />
-        <main className="flex-1">{children}</main>
-        <footer className="border-t border-border/60 py-6 text-center text-xs text-muted-foreground">
-          <div className="container mx-auto px-4">
-            PrimeWave Lab (Pvt) Ltd • Resource Reservation Management System • Technical Assessment
-          </div>
-        </footer>
+      <body className="h-full overflow-hidden bg-[#f0f3f8] dark:bg-[#0c1017] text-foreground font-sans">
+        <DashboardShell currentUser={currentUser} pendingCount={pendingCount}>
+          {children}
+        </DashboardShell>
         <Toaster position="bottom-right" richColors />
       </body>
     </html>

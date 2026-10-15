@@ -62,6 +62,7 @@ import {
   formatOrgDate,
   formatOrgTimeRange,
 } from "@/lib/date-utils";
+import { StatProgressCard } from "@/components/stat-progress-card";
 
 export type AdminReservationItem = {
   id: string;
@@ -362,13 +363,45 @@ export function AdminDashboard({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
+      {/* Admin Metric Cards with Radial Progress Rings matching reference UI */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatProgressCard
+          value={pendingReservations.length}
+          title="Pending Requests"
+          subtitle="Action required"
+          percentage={pendingReservations.length > 0 ? 45 : 0}
+          color="text-amber-500"
+        />
+        <StatProgressCard
+          value={resources.length}
+          title="Fleet Facilities"
+          subtitle={`${resources.filter(r => r.status === "AVAILABLE").length} operational`}
+          percentage={85}
+          color="text-emerald-500"
+        />
+        <StatProgressCard
+          value={reservations.length}
+          title="Total Bookings"
+          subtitle="System ledger"
+          percentage={75}
+          color="text-teal-500"
+        />
+        <StatProgressCard
+          value={users.length}
+          title="Registered Users"
+          subtitle="Enterprise members"
+          percentage={90}
+          color="text-blue-500"
+        />
+      </div>
+
       {/* Tab Switcher & Action Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/60 pb-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             onClick={() => setActiveTab("PENDING")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
               activeTab === "PENDING"
                 ? "bg-emerald-600 text-white shadow-xs font-semibold"
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
@@ -378,7 +411,7 @@ export function AdminDashboard({
           </button>
           <button
             onClick={() => setActiveTab("ALL_RESERVATIONS")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
               activeTab === "ALL_RESERVATIONS"
                 ? "bg-emerald-600 text-white shadow-xs font-semibold"
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
@@ -388,7 +421,7 @@ export function AdminDashboard({
           </button>
           <button
             onClick={() => setActiveTab("RESOURCES")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
               activeTab === "RESOURCES"
                 ? "bg-emerald-600 text-white shadow-xs font-semibold"
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
@@ -398,7 +431,7 @@ export function AdminDashboard({
           </button>
           <button
             onClick={() => setActiveTab("USERS")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
               activeTab === "USERS"
                 ? "bg-emerald-600 text-white shadow-xs font-semibold"
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"

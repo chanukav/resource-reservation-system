@@ -142,9 +142,9 @@ export function UserReservationsList({ initialReservations }: UserReservationsLi
           <button
             key={tab.key}
             onClick={() => setFilter(tab.key)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
               filter === tab.key
-                ? "bg-muted text-foreground font-semibold shadow-xs"
+                ? "bg-foreground text-background font-semibold shadow-xs"
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
             }`}
           >
@@ -154,7 +154,7 @@ export function UserReservationsList({ initialReservations }: UserReservationsLi
       </div>
 
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-border py-16 text-center bg-white dark:bg-card">
           <Calendar className="h-8 w-8 text-muted-foreground mb-3" />
           <h3 className="text-sm font-semibold text-foreground">No reservations found</h3>
           <p className="text-xs text-muted-foreground max-w-sm mt-1">
@@ -171,7 +171,7 @@ export function UserReservationsList({ initialReservations }: UserReservationsLi
             const isUpcoming = (item.status === "APPROVED" || item.status === "PENDING") && endDate >= new Date();
 
             return (
-              <Card key={item.id} className="border border-border/70 transition-all hover:border-border">
+              <Card key={item.id} className="rounded-3xl border border-border/80 bg-white dark:bg-card shadow-xs transition-all hover:border-border hover:shadow-md">
                 <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 pt-4 px-4 sm:px-6">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">

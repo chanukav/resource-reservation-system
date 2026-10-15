@@ -106,22 +106,22 @@ export function ResourceCatalog({ resources, categories }: ResourceCatalogProps)
   return (
     <div className="space-y-5">
       {/* Resource Operations Control Bar: Filters, Search, and View Toggle */}
-      <div className="rounded-2xl border border-border/80 bg-card/80 p-4 shadow-2xs backdrop-blur-xs space-y-3.5">
+      <div className="rounded-3xl border border-border/80 bg-white dark:bg-card p-4 shadow-xs space-y-3.5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           {/* Category Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
             <button
               type="button"
               onClick={() => setSelectedCategory("ALL")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 selectedCategory === "ALL"
-                  ? "bg-foreground text-background shadow-2xs"
+                  ? "bg-foreground text-background shadow-xs"
                   : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
               <span>All Facilities</span>
               <span
-                className={`rounded px-1.5 py-0.2 text-[10px] font-mono font-bold ${
+                className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-bold ${
                   selectedCategory === "ALL"
                     ? "bg-background/20 text-background"
                     : "bg-background text-muted-foreground"
@@ -138,15 +138,15 @@ export function ResourceCatalog({ resources, categories }: ResourceCatalogProps)
                   key={cat.id}
                   type="button"
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                     isSelected
-                      ? "bg-foreground text-background shadow-2xs"
+                      ? "bg-foreground text-background shadow-xs"
                       : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
                 >
                   <span>{cat.name}</span>
                   <span
-                    className={`rounded px-1.5 py-0.2 text-[10px] font-mono font-bold ${
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-bold ${
                       isSelected
                         ? "bg-background/20 text-background"
                         : "bg-background text-muted-foreground"
@@ -304,7 +304,7 @@ export function ResourceCatalog({ resources, categories }: ResourceCatalogProps)
             return (
               <Card
                 key={resource.id}
-                className="group flex flex-col justify-between overflow-hidden rounded-xl border border-border/80 bg-card shadow-2xs transition-all duration-200 hover:border-border hover:shadow-xs"
+                className="group flex flex-col justify-between overflow-hidden rounded-3xl border border-border/80 bg-white dark:bg-card shadow-xs transition-all duration-200 hover:border-border hover:shadow-md"
               >
                 <CardHeader className="space-y-2.5 pb-2.5 p-4">
                   {/* Top Header: Monospace Asset Tag & Status Badges */}

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { LottiePlayer } from "@/components/ui/lottie-player";
 
 export const metadata = {
   title: "Admin Management Hub | PrimeWave Reserve",
@@ -144,39 +145,29 @@ export default async function AdminPage() {
   const pendingCount = serializedReservations.filter((r) => r.status === "PENDING").length;
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
-      {/* Enterprise Admin Command Header */}
-      <div className="rounded-2xl border border-border/80 bg-gradient-to-r from-card via-card to-muted/30 p-5 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/60 border border-border/60 px-2 py-0.5 rounded">
-                ENTERPRISE // ADMIN CONSOLE
-              </span>
-              <span className="text-[11px] text-muted-foreground font-medium">
-                PrimeWave Reserve • Operations Governance
-              </span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground">
-              Administrator Management Hub
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              Review pending reservation requests, maintain facility fleets, manage RBAC privileges, and monitor audit trails.
-            </p>
-          </div>
-
-          {pendingCount > 0 ? (
-            <div className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400 shadow-2xs">
-              <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping" />
-              <span>{pendingCount} review{pendingCount > 1 ? "s" : ""} required</span>
-            </div>
-          ) : (
-            <div className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 shadow-2xs">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span>Queue Cleared</span>
-            </div>
-          )}
+    <div className="space-y-6">
+      {/* Enterprise Status & Operations Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-1 border-b border-border/60">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/70 border border-border/70 px-2.5 py-0.5 rounded-full">
+            GOVERNANCE // OPERATIONS
+          </span>
+          <span className="text-xs text-muted-foreground font-medium">
+            Facility scheduling, pending request approvals, and RBAC control
+          </span>
         </div>
+
+        {pendingCount > 0 ? (
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-400 shadow-2xs">
+            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+            <span>{pendingCount} review{pendingCount > 1 ? "s" : ""} pending approval</span>
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400 shadow-2xs">
+            <LottiePlayer src="/animations/success-check.json" className="h-4 w-4" />
+            <span>All Requests Processed</span>
+          </div>
+        )}
       </div>
 
       <AdminDashboard
