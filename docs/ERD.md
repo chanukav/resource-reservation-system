@@ -14,6 +14,7 @@ GitHub renders the following Mermaid ER diagram natively:
 ```mermaid
 erDiagram
     User ||--o{ Reservation : "places (1:N)"
+    User ||--o{ Notification : "receives (1:N)"
     User {
         String id PK "cuid()"
         String email UK "unique email"
@@ -47,6 +48,7 @@ erDiagram
         DateTime updatedAt "auto updated"
     }
 
+    Reservation ||--o{ Notification : "references (1:N)"
     Reservation {
         String id PK "cuid()"
         String title "purpose or meeting subject"
@@ -60,11 +62,22 @@ erDiagram
         DateTime createdAt "TIMESTAMPTZ(3) default now()"
         DateTime updatedAt "TIMESTAMPTZ(3) auto updated"
     }
+
+    Notification {
+        String id PK "cuid()"
+        String userId FK "references User.id (ON DELETE CASCADE)"
+        String title "subject header"
+        String message "notification body"
+        NotificationType type "APPROVAL | REJECTION | BOOKING_CREATED | SYSTEM"
+        Boolean isRead "default false"
+        String reservationId FK "references Reservation.id (ON DELETE SET NULL)"
+        DateTime createdAt "TIMESTAMPTZ(3) default now()"
+    }
 ```
 
-> **Shareable Link for Submission Form:**  
-> You can view and edit this diagram on Mermaid Live Editor:  
-> [Open Interactive ER Diagram on Mermaid.live](https://mermaid.live/edit#pako:eJy1lk1zmzAQhv_Kjk7OTNJMpzffCNAOrY09QHrocNnA2lELEpGWpG6c_94R2C5x6Ec8Ux9sIb27yM--K3gUhS5JTAWZQOLaYJ0rAIBrSwa224sL_QgJWTL3yFIrmEIumgoLsjB5O43PcjHQP_Zj90nZSLUGWcLyE-SiaGU5OYgHAqpRVnDtNK2Sdy31MyNKhTVBLkppmwo33eVQleiKwLivXFynYQJb8IJ5FA81ATJlsiYoDCFT6bFLSCtsKwalH57v8KBum_Kgxpb1fmIvfspVP0jI6tYU5CPTWpvNAGA339Er-kX54xjhi-gTcHaQhjSLfbJjXruAkmxhZNPV9rC3DZTEKCt7GrwXPH5nJKwq7W5ZAutxFiczyMUKC1lJ3oA2QHetbGpS3C9OdnAaMgdAY5mew8GalGRJ1mW0DRV2JKT7Q73eaF07aYE3UhEfloZRkWIosMHCbTQXlpCh0K1iF9gqyXDXomLJm5F7yRrXdG0qyIXuNokVoLXE0Nxq1s-6Y8czZeTWgu1_cuF99qKZdzULYQtzL4qzMPZi310Fob-Yz6M0jRZxGAxzXWldESowjqoh6zWN0ffotvGgzbdVpR9gVeF6ZMd72FEJ710NDa3IkHKnybH738gSJosYgnAWZiEkYZolkZ-Nd-j_6-eDX08wIkvujqOmNY225EpaE7Fbsu3NVyr4r5471FVpJguXgMykSqLx1rSMhrtRLrJoHqaZN19mXybvzsCzEi99Xen6Ro_GkipfFzmgc2yrZRgHUfzBncHLZbL4HAawhST8GPpZN_SdyWazfryYL12JgxEYhhwlqVVCaPsmLGupgL43Faq-MHK1k_0q4CBDa8mMuM09ro4c5nup7wXhWCHNzpt_sO0_JBt16xHr15n3KHjUy-Jc1GRqlKWYPgq-pdo97Xf3EU_nXQekG1WIKZuWzkWfYPcy0E8-_QT8wpPp)
+> **Shareable Link for Official Assessment Submission Form:**  
+> - **Interactive Mermaid Live Editor:** [https://mermaid.live/edit#pako:vZZRb6NGEMe_ymifclLuTm3f_EYwd6WxsWXwSa2Qqgk7treFXbI7JHXjfPdqweZwQnqtK9UPeFn-swz_-e3AkyiMJDERZKcKtxarXAMArB1ZOBzevzdPsCJH9gFZGQ0TyEVdYkEOrr6bJO9y8VqfGFYbVXwNsFSQehgNeerG_peyVXoLSsLyFnJRNEpe9eKBgCpUJay9ptHqvqFuZkSpsSLIhVSuLnHfno6oanTu0Vj5I7od5MJhySRheXM7_fQ97NDthjErUxJYf8jFOo1WcIBgOo-ToWaKTJmqCApLyCQD9knQBpuSQZvH86fq1U0tezU2bE4TJ_FzrrvBipxpbEEhMm2N3Q_q1M63nhfdRfXnS9tfRV9QgtbYYQWK02JveCzJFVbVLRF9bnuQxKhKd5l5r_x4i1csS-NvKYHNuBcXe5CLDRaqVLwHY4HuG1VXpPmf2YAVacWKnI91NRVuJKRNvdNbYyovLfBOaeL-0jAq1gwF1lj4lHLhCBkK02j2gY1WDPcNala8H7mXqnBLa1tCLkybJJaAzhFDvTNszvbB0bmUkRsHrvvLRfAliGfBzSyCA8yDOMmiJEhCfzaNwsV8HqdpvEii6XCtG2NKQg3W-2fJBXVtzQP6NB6N_X1TmkfYlLgdyfhEUizh023baTZkSfv29JLzD0r-z5u0h_Dtvthn-xLLPvYCMllx25_qxtbGka98RcT-kmvufqOCv4lmX35tmBx8BGQmLYnG96pjtNyOcpHF8yjNgvky--Xqh3cQOIUfQ1Oa6s6MxpKW_y5y4M5L-pZRMo2Tz74pL5erxZdoCgdYRT9FYdYOQ8_ibNaNF_PlLMrOUTyaYcm7pIxeEbpur8pKaaA_6hJ1Vxi1OcpIjqzQOLIjUPp33gcl4SoM0jCYRmPls0dw_4bpN5cYpfrc129iPS7vwT6j-AI6_4MzJ7CPFMOOUJIdEVbkHG69VA-zvTPyrO0NHyXb1wTsD7no4AlmPTzxIoED3CwWt3Hy-ddwFQUdT-nPaRbNx3qZcitCOWgpGyzd2CvBfqV5vOCnq605aZRBsp7NLi36s7gWFdkKlRSTJ8E7qvzH3zFJ8XzdNrV0rwsxYdvQtejIOH4bdpPPfwE](https://mermaid.live/edit#pako:vZZRb6NGEMe_ymifclLuTm3f_EYwd6WxsWXwSa2Qqgk7treFXbI7JHXjfPdqweZwQnqtK9UPeFn-swz_-e3AkyiMJDERZKcKtxarXAMArB1ZOBzevzdPsCJH9gFZGQ0TyEVdYkEOrr6bJO9y8VqfGFYbVXwNsFSQehgNeerG_peyVXoLSsLyFnJRNEpe9eKBgCpUJay9ptHqvqFuZkSpsSLIhVSuLnHfno6oanTu0Vj5I7od5MJhySRheXM7_fQ97NDthjErUxJYf8jFOo1WcIBgOo-ToWaKTJmqCApLyCQD9knQBpuSQZvH86fq1U0tezU2bE4TJ_FzrrvBipxpbEEhMm2N3Q_q1M63nhfdRfXnS9tfRV9QgtbYYQWK02JveCzJFVbVLRF9bnuQxKhKd5l5r_x4i1csS-NvKYHNuBcXe5CLDRaqVLwHY4HuG1VXpPmf2YAVacWKnI91NRVuJKRNvdNbYyovLfBOaeL-0jAq1gwF1lj4lHLhCBkK02j2gY1WDPcNala8H7mXqnBLa1tCLkybJJaAzhFDvTNszvbB0bmUkRsHrvvLRfAliGfBzSyCA8yDOMmiJEhCfzaNwsV8HqdpvEii6XCtG2NKQg3W-2fJBXVtzQP6NB6N_X1TmkfYlLgdyfhEUizh023baTZkSfv29JLzD0r-z5u0h_Dtvthn-xLLPvYCMllx25_qxtbGka98RcT-kmvufqOCv4lmX35tmBx8BGQmLYnG96pjtNyOcpHF8yjNgvky--Xqh3cQOIUfQ1Oa6s6MxpKW_y5y4M5L-pZRMo2Tz74pL5erxZdoCgdYRT9FYdYOQ8_ibNaNF_PlLMrOUTyaYcm7pIxeEbpur8pKaaA_6hJ1Vxi1OcpIjqzQOLIjUPp33gcl4SoM0jCYRmPls0dw_4bpN5cYpfrc129iPS7vwT6j-AI6_4MzJ7CPFMOOUJIdEVbkHG69VA-zvTPyrO0NHyXb1wTsD7no4AlmPTzxIoED3CwWt3Hy-ddwFQUdT-nPaRbNx3qZcitCOWgpGyzd2CvBfqV5vOCnq605aZRBsp7NLi36s7gWFdkKlRSTJ8E7qvzH3zFJ8XzdNrV0rwsxYdvQtejIOH4bdpPPfwE)  
+> - **Full-Screen SVG Diagram View:** [https://mermaid.live/view#pako:vZZRb6NGEMe_ymifclLuTm3f_EYwd6WxsWXwSa2Qqgk7treFXbI7JHXjfPdqweZwQnqtK9UPeFn-swz_-e3AkyiMJDERZKcKtxarXAMArB1ZOBzevzdPsCJH9gFZGQ0TyEVdYkEOrr6bJO9y8VqfGFYbVXwNsFSQehgNeerG_peyVXoLSsLyFnJRNEpe9eKBgCpUJay9ptHqvqFuZkSpsSLIhVSuLnHfno6oanTu0Vj5I7od5MJhySRheXM7_fQ97NDthjErUxJYf8jFOo1WcIBgOo-ToWaKTJmqCApLyCQD9knQBpuSQZvH86fq1U0tezU2bE4TJ_FzrrvBipxpbEEhMm2N3Q_q1M63nhfdRfXnS9tfRV9QgtbYYQWK02JveCzJFVbVLRF9bnuQxKhKd5l5r_x4i1csS-NvKYHNuBcXe5CLDRaqVLwHY4HuG1VXpPmf2YAVacWKnI91NRVuJKRNvdNbYyovLfBOaeL-0jAq1gwF1lj4lHLhCBkK02j2gY1WDPcNala8H7mXqnBLa1tCLkybJJaAzhFDvTNszvbB0bmUkRsHrvvLRfAliGfBzSyCA8yDOMmiJEhCfzaNwsV8HqdpvEii6XCtG2NKQg3W-2fJBXVtzQP6NB6N_X1TmkfYlLgdyfhEUizh023baTZkSfv29JLzD0r-z5u0h_Dtvthn-xLLPvYCMllx25_qxtbGka98RcT-kmvufqOCv4lmX35tmBx8BGQmLYnG96pjtNyOcpHF8yjNgvky--Xqh3cQOIUfQ1Oa6s6MxpKW_y5y4M5L-pZRMo2Tz74pL5erxZdoCgdYRT9FYdYOQ8_ibNaNF_PlLMrOUTyaYcm7pIxeEbpur8pKaaA_6hJ1Vxi1OcpIjqzQOLIjUPp33gcl4SoM0jCYRmPls0dw_4bpN5cYpfrc129iPS7vwT6j-AI6_4MzJ7CPFMOOUJIdEVbkHG69VA-zvTPyrO0NHyXb1wTsD7no4AlmPTzxIoED3CwWt3Hy-ddwFQUdT-nPaRbNx3qZcitCOWgpGyzd2CvBfqV5vOCnq605aZRBsp7NLi36s7gWFdkKlRSTJ8E7qvzH3zFJ8XzdNrV0rwsxYdvQtejIOH4bdpPPfwE](https://mermaid.live/view#pako:vZZRb6NGEMe_ymifclLuTm3f_EYwd6WxsWXwSa2Qqgk7treFXbI7JHXjfPdqweZwQnqtK9UPeFn-swz_-e3AkyiMJDERZKcKtxarXAMArB1ZOBzevzdPsCJH9gFZGQ0TyEVdYkEOrr6bJO9y8VqfGFYbVXwNsFSQehgNeerG_peyVXoLSsLyFnJRNEpe9eKBgCpUJay9ptHqvqFuZkSpsSLIhVSuLnHfno6oanTu0Vj5I7od5MJhySRheXM7_fQ97NDthjErUxJYf8jFOo1WcIBgOo-ToWaKTJmqCApLyCQD9knQBpuSQZvH86fq1U0tezU2bE4TJ_FzrrvBipxpbEEhMm2N3Q_q1M63nhfdRfXnS9tfRV9QgtbYYQWK02JveCzJFVbVLRF9bnuQxKhKd5l5r_x4i1csS-NvKYHNuBcXe5CLDRaqVLwHY4HuG1VXpPmf2YAVacWKnI91NRVuJKRNvdNbYyovLfBOaeL-0jAq1gwF1lj4lHLhCBkK02j2gY1WDPcNala8H7mXqnBLa1tCLkybJJaAzhFDvTNszvbB0bmUkRsHrvvLRfAliGfBzSyCA8yDOMmiJEhCfzaNwsV8HqdpvEii6XCtG2NKQg3W-2fJBXVtzQP6NB6N_X1TmkfYlLgdyfhEUizh023baTZkSfv29JLzD0r-z5u0h_Dtvthn-xLLPvYCMllx25_qxtbGka98RcT-kmvufqOCv4lmX35tmBx8BGQmLYnG96pjtNyOcpHF8yjNgvky--Xqh3cQOIUfQ1Oa6s6MxpKW_y5y4M5L-pZRMo2Tz74pL5erxZdoCgdYRT9FYdYOQ8_ibNaNF_PlLMrOUTyaYcm7pIxeEbpur8pKaaA_6hJ1Vxi1OcpIjqzQOLIjUPp33gcl4SoM0jCYRmPls0dw_4bpN5cYpfrc129iPS7vwT6j-AI6_4MzJ7CPFMOOUJIdEVbkHG69VA-zvTPyrO0NHyXb1wTsD7no4AlmPTzxIoED3CwWt3Hy-ddwFQUdT-nPaRbNx3qZcitCOWgpGyzd2CvBfqV5vOCnq605aZRBsp7NLi36s7gWFdkKlRSTJ8E7qvzH3zFJ8XzdNrV0rwsxYdvQtejIOH4bdpPPfwE)
 
 ---
 
@@ -135,6 +148,22 @@ Booked time slots for shared resources. Stored with explicit microsecond timezon
 
 ---
 
+### Table: `notifications`
+Durable in-app notification records dispatched upon reservation submission, administrative approvals, or rejections.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `VARCHAR(30)` | **PRIMARY KEY** (`cuid()`) | Unique notification identifier. |
+| `userId` | `VARCHAR(30)` | **FOREIGN KEY** &rarr; `users.id` (`ON DELETE CASCADE`) | Recipient user ID. |
+| `title` | `VARCHAR(255)` | **NOT NULL** | Subject header (e.g. "Reservation Approved"). |
+| `message` | `TEXT` | **NOT NULL** | Detailed notification payload or admin feedback. |
+| `type` | `ENUM ('APPROVAL', 'REJECTION', 'BOOKING_CREATED', 'SYSTEM')` | **NOT NULL**, Default: `'SYSTEM'` | Notification classification. |
+| `isRead` | `BOOLEAN` | **NOT NULL**, Default: `false` | Read receipt indicator. |
+| `reservationId` | `VARCHAR(30)` | **FOREIGN KEY** &rarr; `reservations.id` (`ON DELETE SET NULL`) | Associated reservation reference. |
+| `createdAt` | `TIMESTAMPTZ(3)` | **NOT NULL**, Default: `now()` | Generation timestamp. |
+
+---
+
 ## 3. Database Indexes for Performance & Concurrency
 
 1. **PostgreSQL GiST Exclusion Constraint with `tstzrange` (Hardware-Level Concurrency & Timezone Safety):**
@@ -179,6 +208,13 @@ Booked time slots for shared resources. Stored with explicit microsecond timezon
    CREATE UNIQUE INDEX "resources_categoryId_name_key" ON "resources" ("categoryId", "name");
    ```
    *Rationale:* Enforces scoped name uniqueness per category at the physical storage layer.
+
+6. **Notification Inboxes & Real-Time Query Indexes:**
+   ```sql
+   CREATE INDEX "notifications_userId_isRead_idx" ON "notifications" ("userId", "isRead");
+   CREATE INDEX "notifications_userId_createdAt_idx" ON "notifications" ("userId", "createdAt");
+   ```
+   *Rationale:* Powers instant unread notification badge counts (`userId, isRead`) and chronological notification history feeds (`userId, createdAt`).
 
 ---
 

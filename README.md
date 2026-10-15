@@ -4,6 +4,16 @@ A centralized digital reservation and scheduling platform developed for the **Pr
 
 ---
 
+## 📌 Assessment Submission Deliverables
+
+| Deliverable | Description | Access / Submission Reference |
+| :--- | :--- | :--- |
+| **1. GitHub Repository** | Complete, production-grade application source code, version-controlled migrations, automated test suites, and documentation. | [**github.com/chanukav/resource-reservation-system**](https://github.com/chanukav/resource-reservation-system) |
+| **2. Demonstration Video** | 3–5 minute structured walkthrough communicating the business problem, live demonstration, and engineering decisions. | Script & Walkthrough Guide: [**docs/DEMO_VIDEO_SCRIPT.md**](docs/DEMO_VIDEO_SCRIPT.md) |
+| **3. Entity Relationship (ER) Diagram** | Database architecture illustrating entities, relational cardinalities, constraints, and data dictionary. | **Shareable Link:** [**Open on Mermaid.live**](https://mermaid.live/edit#pako:vZZRb6NGEMe_ymifclLuTm3f_EYwd6WxsWXwSa2Qqgk7treFXbI7JHXjfPdqweZwQnqtK9UPeFn-swz_-e3AkyiMJDERZKcKtxarXAMArB1ZOBzevzdPsCJH9gFZGQ0TyEVdYkEOrr6bJO9y8VqfGFYbVXwNsFSQehgNeerG_peyVXoLSsLyFnJRNEpe9eKBgCpUJay9ptHqvqFuZkSpsSLIhVSuLnHfno6oanTu0Vj5I7od5MJhySRheXM7_fQ97NDthjErUxJYf8jFOo1WcIBgOo-ToWaKTJmqCApLyCQD9knQBpuSQZvH86fq1U0tezU2bE4TJ_FzrrvBipxpbEEhMm2N3Q_q1M63nhfdRfXnS9tfRV9QgtbYYQWK02JveCzJFVbVLRF9bnuQxKhKd5l5r_x4i1csS-NvKYHNuBcXe5CLDRaqVLwHY4HuG1VXpPmf2YAVacWKnI91NRVuJKRNvdNbYyovLfBOaeL-0jAq1gwF1lj4lHLhCBkK02j2gY1WDPcNala8H7mXqnBLa1tCLkybJJaAzhFDvTNszvbB0bmUkRsHrvvLRfAliGfBzSyCA8yDOMmiJEhCfzaNwsV8HqdpvEii6XCtG2NKQg3W-2fJBXVtzQP6NB6N_X1TmkfYlLgdyfhEUizh023baTZkSfv29JLzD0r-z5u0h_Dtvthn-xLLPvYCMllx25_qxtbGka98RcT-kmvufqOCv4lmX35tmBx8BGQmLYnG96pjtNyOcpHF8yjNgvky--Xqh3cQOIUfQ1Oa6s6MxpKW_y5y4M5L-pZRMo2Tz74pL5erxZdoCgdYRT9FYdYOQ8_ibNaNF_PlLMrOUTyaYcm7pIxeEbpur8pKaaA_6hJ1Vxi1OcpIjqzQOLIjUPp33gcl4SoM0jCYRmPls0dw_4bpN5cYpfrc129iPS7vwT6j-AI6_4MzJ7CPFMOOUJIdEVbkHG69VA-zvTPyrO0NHyXb1wTsD7no4AlmPTzxIoED3CwWt3Hy-ddwFQUdT-nPaRbNx3qZcitCOWgpGyzd2CvBfqV5vOCnq605aZRBsp7NLi36s7gWFdkKlRSTJ8E7qvzH3zFJ8XzdNrV0rwsxYdvQtejIOH4bdpPPfwE) <br> Specification & Dictionary: [**docs/ERD.md**](docs/ERD.md) |
+
+---
+
 ## 1. Business Problem & Solution Overview
 
 ### The Challenge
@@ -39,47 +49,71 @@ A growing organization manages shared facilities and resources (meeting rooms, v
 
 ```mermaid
 erDiagram
-    User ||--o{ Reservation : "places"
+    User ||--o{ Reservation : "places (1:N)"
+    User ||--o{ Notification : "receives (1:N)"
     User {
         String id PK "cuid()"
-        String email UK
-        String name
+        String email UK "unique email"
+        String name "display name"
+        String passwordHash "salted PBKDF2 hash"
         Role role "USER | ADMIN"
-        DateTime createdAt
+        DateTime createdAt "default now()"
+        DateTime updatedAt "auto updated"
     }
 
-    ResourceCategory ||--o{ Resource : "categorizes"
+    ResourceCategory ||--o{ Resource : "categorizes (1:N)"
     ResourceCategory {
         String id PK "cuid()"
-        String name UK
-        String description
+        String name UK "unique category name"
+        String description "category details"
+        DateTime createdAt "default now()"
     }
 
-    Resource ||--o{ Reservation : "has"
+    Resource ||--o{ Reservation : "allocated to (1:N)"
     Resource {
         String id PK "cuid()"
-        String name "unique per category"
-        String description
-        String location
-        Int capacity
+        String name "facility or equipment name"
+        String description "amenities or specs"
+        String location "room or cabinet location"
+        Int capacity "seat count or unit quantity"
+        String imageUrl "optional asset photo"
         ResourceStatus status "AVAILABLE | MAINTENANCE | DECOMMISSIONED"
-        Boolean requiresApproval
-        String categoryId FK "references ResourceCategory.id (ON DELETE RESTRICT)"
+        Boolean requiresApproval "workflow flag"
+        String categoryId FK "references ResourceCategory.id"
+        DateTime createdAt "default now()"
+        DateTime updatedAt "auto updated"
     }
 
+    Reservation ||--o{ Notification : "references (1:N)"
     Reservation {
         String id PK "cuid()"
-        String title
-        String description
+        String title "purpose or meeting subject"
+        String description "optional notes / attendees"
         DateTime startTime "TIMESTAMPTZ(3) Asia/Colombo"
         DateTime endTime "TIMESTAMPTZ(3) Asia/Colombo"
         ReservationStatus status "PENDING | APPROVED | REJECTED | CANCELLED | COMPLETED"
-        String rejectionReason
-        String userId FK "references User.id (ON DELETE CASCADE)"
-        String resourceId FK "references Resource.id (ON DELETE CASCADE)"
+        String rejectionReason "admin explanation if rejected"
+        String userId FK "references User.id (CASCADE)"
+        String resourceId FK "references Resource.id (CASCADE)"
+        DateTime createdAt "TIMESTAMPTZ(3)"
+        DateTime updatedAt "TIMESTAMPTZ(3)"
+    }
+
+    Notification {
+        String id PK "cuid()"
+        String userId FK "references User.id (CASCADE)"
+        String title "subject header"
+        String message "notification body"
+        NotificationType type "APPROVAL | REJECTION | BOOKING_CREATED | SYSTEM"
+        Boolean isRead "default false"
+        String reservationId FK "references Reservation.id (SET NULL)"
         DateTime createdAt "TIMESTAMPTZ(3)"
     }
 ```
+
+> **Shareable ER Diagram Links:**  
+> - **Interactive Mermaid Live Editor:** [https://mermaid.live/edit#pako:vZZRb6NGEMe_ymifclLuTm3f_EYwd6WxsWXwSa2Qqgk7treFXbI7JHXjfPdqweZwQnqtK9UPeFn-swz_-e3AkyiMJDERZKcKtxarXAMArB1ZOBzevzdPsCJH9gFZGQ0TyEVdYkEOrr6bJO9y8VqfGFYbVXwNsFSQehgNeerG_peyVXoLSsLyFnJRNEpe9eKBgCpUJay9ptHqvqFuZkSpsSLIhVSuLnHfno6oanTu0Vj5I7od5MJhySRheXM7_fQ97NDthjErUxJYf8jFOo1WcIBgOo-ToWaKTJmqCApLyCQD9knQBpuSQZvH86fq1U0tezU2bE4TJ_FzrrvBipxpbEEhMm2N3Q_q1M63nhfdRfXnS9tfRV9QgtbYYQWK02JveCzJFVbVLRF9bnuQxKhKd5l5r_x4i1csS-NvKYHNuBcXe5CLDRaqVLwHY4HuG1VXpPmf2YAVacWKnI91NRVuJKRNvdNbYyovLfBOaeL-0jAq1gwF1lj4lHLhCBkK02j2gY1WDPcNala8H7mXqnBLa1tCLkybJJaAzhFDvTNszvbB0bmUkRsHrvvLRfAliGfBzSyCA8yDOMmiJEhCfzaNwsV8HqdpvEii6XCtG2NKQg3W-2fJBXVtzQP6NB6N_X1TmkfYlLgdyfhEUizh023baTZkSfv29JLzD0r-z5u0h_Dtvthn-xLLPvYCMllx25_qxtbGka98RcT-kmvufqOCv4lmX35tmBx8BGQmLYnG96pjtNyOcpHF8yjNgvky--Xqh3cQOIUfQ1Oa6s6MxpKW_y5y4M5L-pZRMo2Tz74pL5erxZdoCgdYRT9FYdYOQ8_ibNaNF_PlLMrOUTyaYcm7pIxeEbpur8pKaaA_6hJ1Vxi1OcpIjqzQOLIjUPp33gcl4SoM0jCYRmPls0dw_4bpN5cYpfrc129iPS7vwT6j-AI6_4MzJ7CPFMOOUJIdEVbkHG69VA-zvTPyrO0NHyXb1wTsD7no4AlmPTzxIoED3CwWt3Hy-ddwFQUdT-nPaRbNx3qZcitCOWgpGyzd2CvBfqV5vOCnq605aZRBsp7NLi36s7gWFdkKlRSTJ8E7qvzH3zFJ8XzdNrV0rwsxYdvQtejIOH4bdpPPfwE](https://mermaid.live/edit#pako:vZZRb6NGEMe_ymifclLuTm3f_EYwd6WxsWXwSa2Qqgk7treFXbI7JHXjfPdqweZwQnqtK9UPeFn-swz_-e3AkyiMJDERZKcKtxarXAMArB1ZOBzevzdPsCJH9gFZGQ0TyEVdYkEOrr6bJO9y8VqfGFYbVXwNsFSQehgNeerG_peyVXoLSsLyFnJRNEpe9eKBgCpUJay9ptHqvqFuZkSpsSLIhVSuLnHfno6oanTu0Vj5I7od5MJhySRheXM7_fQ97NDthjErUxJYf8jFOo1WcIBgOo-ToWaKTJmqCApLyCQD9knQBpuSQZvH86fq1U0tezU2bE4TJ_FzrrvBipxpbEEhMm2N3Q_q1M63nhfdRfXnS9tfRV9QgtbYYQWK02JveCzJFVbVLRF9bnuQxKhKd5l5r_x4i1csS-NvKYHNuBcXe5CLDRaqVLwHY4HuG1VXpPmf2YAVacWKnI91NRVuJKRNvdNbYyovLfBOaeL-0jAq1gwF1lj4lHLhCBkK02j2gY1WDPcNala8H7mXqnBLa1tCLkybJJaAzhFDvTNszvbB0bmUkRsHrvvLRfAliGfBzSyCA8yDOMmiJEhCfzaNwsV8HqdpvEii6XCtG2NKQg3W-2fJBXVtzQP6NB6N_X1TmkfYlLgdyfhEUizh023baTZkSfv29JLzD0r-z5u0h_Dtvthn-xLLPvYCMllx25_qxtbGka98RcT-kmvufqOCv4lmX35tmBx8BGQmLYnG96pjtNyOcpHF8yjNgvky--Xqh3cQOIUfQ1Oa6s6MxpKW_y5y4M5L-pZRMo2Tz74pL5erxZdoCgdYRT9FYdYOQ8_ibNaNF_PlLMrOUTyaYcm7pIxeEbpur8pKaaA_6hJ1Vxi1OcpIjqzQOLIjUPp33gcl4SoM0jCYRmPls0dw_4bpN5cYpfrc129iPS7vwT6j-AI6_4MzJ7CPFMOOUJIdEVbkHG69VA-zvTPyrO0NHyXb1wTsD7no4AlmPTzxIoED3CwWt3Hy-ddwFQUdT-nPaRbNx3qZcitCOWgpGyzd2CvBfqV5vOCnq605aZRBsp7NLi36s7gWFdkKlRSTJ8E7qvzH3zFJ8XzdNrV0rwsxYdvQtejIOH4bdpPPfwE)  
+> - **Detailed Schema & Data Dictionary:** [docs/ERD.md](docs/ERD.md)
 
 ---
 
@@ -215,9 +249,64 @@ Only administrators have access to user management in the **Admin Console** unde
 
 ---
 
-## 7. Project Directory Structure
+## 7. Automated Verification & Test Suites (182+ Assertions)
+
+The repository includes a comprehensive, multi-layered automated test suite covering unit logic, integration workflows, security defenses, concurrency race conditions, and stress testing:
+
+```bash
+# Run the entire test suite (all 6 suites, 182+ assertions)
+npm test
+
+# Run specific domain suites:
+npm run test:checklist   # Evaluator 18-point verification checklist
+npm run test:auth        # Matrix RBAC, session tampering & exclusion constraint checks
+npm run test:users       # User management, RBAC promotion/demotion invariants
+npm run test:stress      # High-concurrency stress & race condition testing
+npm run test:full        # Core end-to-end booking & conflict lifecycle
+```
+
+### Test Suite Execution Output
+```
+=====================================================================================
+  🏁 MASTER TEST ORCHESTRATION SUMMARY
+=====================================================================================
+  ✅ Full Project Core Suite                  Passed (0.91s)
+  ✅ Extended Stress & Invariants Suite       Passed (1.27s)
+  ✅ Evaluator Assessment Checklist           Passed (2.04s)
+  ✅ User Management & Life Cycle             Passed (0.70s)
+  ✅ Matrix RBAC & Session Defense            Passed (1.93s)
+  ✅ Real-Time Notifications & Approvals      Passed (1.08s)
+-------------------------------------------------------------------------------------
+  TOTAL ELAPSED TIME: ~8.0s across all test suites
+  TOTAL PASSING TESTS: 182+ automated assertions across all P0, P1, and P2 domains
+=====================================================================================
+```
+
+---
+
+## 8. Alignment with Evaluation Criteria
+
+| Evaluation Area | How PrimeWave Reserve Addresses It | Technical Evidence / Documentation |
+| :--- | :--- | :--- |
+| **Understanding of Business Problem** | Directly eliminates scheduling confusion, double-bookings, and asset mismanagement through centralized live status, instant conflict feedback, and dual-tier booking workflows. | [Section 1](#1-business-problem--solution-overview), [docs/DEMO_VIDEO_SCRIPT.md](docs/DEMO_VIDEO_SCRIPT.md) |
+| **Problem-Solving & Engineering Judgement** | Solved double-booking race conditions at the ACID level using PostgreSQL GiST Exclusion Constraints (`tstzrange`) rather than error-prone application locks. Modeled strict state machines and provisional interval locking. | [Section 4](#4-key-engineering-decisions), [docs/INDEXING_BENCHMARK.md](docs/INDEXING_BENCHMARK.md), [docs/RESERVATION_LIFECYCLE.md](docs/RESERVATION_LIFECYCLE.md) |
+| **Functional Completeness & Reliability** | Complete end-to-end flows: resource discovery, instant filtering, booking modal, conflict rejection, dual-tier approval workflows, rejection feedback, cancellations, and user management. | [docs/TECHNICAL_EVIDENCE.md](docs/TECHNICAL_EVIDENCE.md), 182+ tests passing |
+| **Application Architecture & Database Design** | Modular Next.js 16 App Router with React Server Components, Server Actions, PostgreSQL 18 with Prisma ORM, strict foreign key constraints (`ON DELETE RESTRICT` for categories, `CASCADE` for users/reservations), composite and GiST indexes. | [Section 3](#3-entity-relationship-er-diagram), [docs/ERD.md](docs/ERD.md) |
+| **Code Quality & Maintainability** | 100% strict TypeScript (`strict: true`), zero ESLint warnings, typed Zod runtime schemas, error sanitization, single Prisma singleton, modular component hierarchy. | Clean `tsc --noEmit` and `npm run lint` results |
+| **User Experience & Practical Usability** | Modern design using Tailwind CSS v4 and shadcn/ui. Clear visual indicators (Available vs Occupied), real-time notification toasts via Sonner, and an evaluator persona quick-switcher. | Accessible UI components in `src/components/` |
+| **Technical Understanding & Communication** | Clear technical documentation, comprehensive ERD data dictionary, indexing and buffer benchmarks, timed demonstration video script, and reproducible test suites. | [docs/](docs/), [README.md](README.md), [docs/DEMO_VIDEO_SCRIPT.md](docs/DEMO_VIDEO_SCRIPT.md) |
+
+---
+
+## 9. Project Directory Structure
 
 ```
+├── docs/                 # Architectural specifications, benchmarks & video script
+│   ├── DEMO_VIDEO_SCRIPT.md    # Timed 4-minute demonstration script & cues
+│   ├── ERD.md                  # Comprehensive ER diagram & data dictionary
+│   ├── INDEXING_BENCHMARK.md   # PostgreSQL query execution plans & buffer analysis
+│   ├── RESERVATION_LIFECYCLE.md# State machine transition rules & locks
+│   └── TECHNICAL_EVIDENCE.md   # Empirical performance & checklist evidence
 ├── prisma/
 │   ├── migrations/       # Version-controlled SQL migration history
 │   ├── schema.prisma     # Relational database models and indexes
@@ -225,6 +314,7 @@ Only administrators have access to user management in the **Admin Console** unde
 ├── src/
 │   ├── actions/          # Server Actions (Mutations & conflict checking)
 │   │   ├── auth.ts       # Login, logout, session management
+│   │   ├── notifications.ts # Real-time notification actions
 │   │   ├── reservations.ts
 │   │   ├── resources.ts
 │   │   └── users.ts      # Administrator User Management (Create, Role, Delete)
@@ -239,19 +329,22 @@ Only administrators have access to user management in the **Admin Console** unde
 │   │   ├── admin-dashboard.tsx # Hub with Pending, Bookings, Resources & Users tabs
 │   │   ├── login-form.tsx      # Interactive sign-in form with demo quick-fill
 │   │   ├── navbar.tsx          # Dynamic navigation with user profile & sign out
+│   │   ├── notifications-popover.tsx # Real-time notifications bell & inbox
 │   │   ├── reserve-modal.tsx
 │   │   ├── resource-catalog.tsx
 │   │   └── user-reservations-list.tsx
 │   └── lib/              # Database clients and session helpers
 │       ├── auth.ts       # Persona switching server actions
 │       ├── prisma.ts     # Global Prisma Client singleton
+│       ├── reservation-state.ts # Authority state machine validator
 │       └── utils.ts      # Class merging utilities
+├── tests/                # Automated verification suites (182+ assertions)
 ├── .env.example          # Environment variable template
 └── README.md             # Technical documentation
 ```
 
 ---
 
-## 8. License & Attribution
-Developed for the **PrimeWave Lab (Pvt) Ltd** Software Engineering Internship Technical Assessment.
+## 10. License & Attribution
+Developed for the **PrimeWave Lab (Pvt) Ltd** Software Engineering Internship Technical Assessment.  
 Author: **Chanuka Vithanage**
