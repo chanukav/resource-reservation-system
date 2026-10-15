@@ -468,11 +468,11 @@ export async function updateReservationStatusAction({
         };
       }
 
-      // 2. Recheck start time (cannot approve past requests)
-      if (targetReservation.startTime <= new Date()) {
+      // 2. Recheck time window (cannot approve requests that have already concluded)
+      if (targetReservation.endTime <= new Date()) {
         return {
           success: false,
-          error: "Cannot approve reservation: the requested reservation start time has already passed.",
+          error: "Cannot approve reservation: the requested reservation time window has already passed.",
         };
       }
 

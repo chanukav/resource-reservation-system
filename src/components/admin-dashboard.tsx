@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -178,12 +179,29 @@ function getCategoryVisual(name: string) {
 }
 
 export function AdminDashboard({
-  reservations,
-  resources,
+  reservations: initialReservations,
+  resources: initialResources,
   categories,
-  users = [],
+  users: initialUsers = [],
   currentAdminId,
 }: AdminDashboardProps) {
+  const router = useRouter();
+  const [reservations, setReservations] = useState<AdminReservationItem[]>(initialReservations);
+  const [resources, setResources] = useState<AdminResourceItem[]>(initialResources);
+  const [users, setUsers] = useState<AdminUserItem[]>(initialUsers);
+
+  useEffect(() => {
+    setReservations(initialReservations);
+  }, [initialReservations]);
+
+  useEffect(() => {
+    setResources(initialResources);
+  }, [initialResources]);
+
+  useEffect(() => {
+    setUsers(initialUsers);
+  }, [initialUsers]);
+
   const [activeTab, setActiveTab] = useState<
     "PENDING" | "ALL_RESERVATIONS" | "RESOURCES" | "USERS"
   >("PENDING");
@@ -282,14 +300,21 @@ export function AdminDashboard({
 
   const handleApprove = (id: string) => {
     startTransition(async () => {
+      // Optimistically update local state so card disappears from Pending tab immediately
+      setReservations((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: ReservationStatus.APPROVED } : r))
+      );
+
       const res = await updateReservationStatusAction({
         reservationId: id,
         status: ReservationStatus.APPROVED,
       });
       if (res.success) {
         toast.success(res.message);
+        router.refresh();
       } else {
         toast.error("Approval failed", { description: res.error });
+        router.refresh();
       }
     });
   };
@@ -304,6 +329,14 @@ export function AdminDashboard({
     }
 
     startTransition(async () => {
+      setReservations((prev) =>
+        prev.map((r) =>
+          r.id === selectedResId
+            ? { ...r, status: ReservationStatus.REJECTED, rejectionReason: rejectReason.trim() }
+            : r
+        )
+      );
+
       const res = await updateReservationStatusAction({
         reservationId: selectedResId,
         status: ReservationStatus.REJECTED,
@@ -314,8 +347,10 @@ export function AdminDashboard({
         toast.success(res.message);
         setRejectModalOpen(false);
         setRejectReason("");
+        router.refresh();
       } else {
         toast.error("Rejection failed", { description: res.error });
+        router.refresh();
       }
     });
   };
@@ -345,6 +380,7 @@ export function AdminDashboard({
         setResLocation("");
         setResCapacity("1");
         setResRequiresApproval(false);
+        router.refresh();
       } else {
         toast.error("Creation failed", { description: res.error });
       }
@@ -353,11 +389,16 @@ export function AdminDashboard({
 
   const handleStatusChange = (resourceId: string, status: ResourceStatus) => {
     startTransition(async () => {
+      setResources((prev) =>
+        prev.map((r) => (r.id === resourceId ? { ...r, status } : r))
+      );
       const res = await updateResourceStatusAction(resourceId, status);
       if (res.success) {
         toast.success(res.message);
+        router.refresh();
       } else {
         toast.error("Status update failed", { description: res.error });
+        router.refresh();
       }
     });
   };
@@ -386,6 +427,7 @@ export function AdminDashboard({
         setUserEmail("");
         setUserPassword("");
         setUserRole("USER");
+        router.refresh();
       } else {
         toast.error("User creation failed", { description: res.error });
       }
@@ -394,11 +436,16 @@ export function AdminDashboard({
 
   const handleRoleChange = (userId: string, newRole: "USER" | "ADMIN") => {
     startTransition(async () => {
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+      );
       const res = await updateUserRoleAction({ userId, role: newRole });
       if (res.success) {
         toast.success(res.message);
+        router.refresh();
       } else {
         toast.error("Role update failed", { description: res.error });
+        router.refresh();
       }
     });
   };
@@ -406,13 +453,16 @@ export function AdminDashboard({
   const handleDeleteUser = () => {
     if (!userToDelete) return;
     startTransition(async () => {
+      setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
       const res = await deleteUserAction({ userId: userToDelete.id });
       if (res.success) {
         toast.success(res.message);
         setDeleteUserDialogOpen(false);
         setUserToDelete(null);
+        router.refresh();
       } else {
         toast.error("Delete failed", { description: res.error });
+        router.refresh();
       }
     });
   };
