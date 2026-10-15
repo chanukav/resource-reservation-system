@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -55,6 +55,7 @@ function formatRelativeTime(dateString: string): string {
 
 export function NotificationsPopover({ currentUser }: NotificationsPopoverProps) {
   const router = useRouter();
+  const currentUserId = currentUser?.id;
   const [isOpen, setIsOpen] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -62,17 +63,31 @@ export function NotificationsPopover({ currentUser }: NotificationsPopoverProps)
   const [isPending, startTransition] = useTransition();
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  // 1. Initial Load of Notifications from Server Action
-  useEffect(() => {
-    if (!currentUser) return;
-
-    getNotificationsAction().then((res) => {
-      if (res.success && res.data) {
-        setNotifications(res.data.notifications);
-        setUnreadCount(res.data.unreadCount);
+  // 1. Initial Load of Notifications via GET API route (never triggers Server Action page revalidation)
+  const fetchNotifications = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      const res = await fetch("/api/notifications");
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount ?? 0);
       }
-    });
-  }, [currentUser]);
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+    }
+  }, [currentUserId]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  // Re-fetch latest notifications when popover is opened
+  useEffect(() => {
+    if (isOpen) {
+      fetchNotifications();
+    }
+  }, [isOpen, fetchNotifications]);
 
   // Synchronize with sidebar and other components
   useEffect(() => {
@@ -85,7 +100,7 @@ export function NotificationsPopover({ currentUser }: NotificationsPopoverProps)
 
   // 2. Real-Time Server-Sent Events (SSE) Listener
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUserId) return;
 
     let eventSource: EventSource | null = null;
     let reconnectTimer: NodeJS.Timeout | null = null;
@@ -146,7 +161,7 @@ export function NotificationsPopover({ currentUser }: NotificationsPopoverProps)
       if (eventSource) eventSource.close();
       if (reconnectTimer) clearTimeout(reconnectTimer);
     };
-  }, [currentUser]);
+  }, [currentUserId]);
 
   // 3. Click outside listener to dismiss popover
   useEffect(() => {

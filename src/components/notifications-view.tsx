@@ -82,16 +82,19 @@ export function NotificationsView({
       eventSource.addEventListener("notification", (event) => {
         try {
           const newNotification: FullNotificationItem = JSON.parse(event.data);
-          setNotifications((prev) => [
-            newNotification,
-            ...prev.filter((n) => n.id !== newNotification.id),
-          ]);
-
-          window.dispatchEvent(
-            new CustomEvent("notifications-count-change", {
-              detail: { count: unreadCount + 1 },
-            })
-          );
+          setNotifications((prev) => {
+            const next = [
+              newNotification,
+              ...prev.filter((n) => n.id !== newNotification.id),
+            ];
+            const nextUnread = next.filter((n) => !n.isRead).length;
+            window.dispatchEvent(
+              new CustomEvent("notifications-count-change", {
+                detail: { count: nextUnread },
+              })
+            );
+            return next;
+          });
         } catch (err) {
           console.error("Error parsing notification event:", err);
         }
@@ -103,7 +106,7 @@ export function NotificationsView({
     return () => {
       if (eventSource) eventSource.close();
     };
-  }, [unreadCount]);
+  }, []);
 
   const handleMarkAsRead = (id: string) => {
     setNotifications((prev) =>
