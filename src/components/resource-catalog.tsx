@@ -52,6 +52,8 @@ export type SerializedCategory = {
 interface ResourceCatalogProps {
   resources: SerializedResource[];
   categories: SerializedCategory[];
+  activeCategoryId?: string;
+  onSelectCategory?: (id: string) => void;
 }
 
 function getAssetCode(categoryName: string, id: string) {
@@ -64,8 +66,18 @@ function getAssetCode(categoryName: string, id: string) {
   return `${prefix}-${num}`;
 }
 
-export function ResourceCatalog({ resources, categories }: ResourceCatalogProps) {
-  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+export function ResourceCatalog({
+  resources,
+  categories,
+  activeCategoryId,
+  onSelectCategory,
+}: ResourceCatalogProps) {
+  const [internalCategory, setInternalCategory] = useState<string>("ALL");
+  const selectedCategory = activeCategoryId !== undefined ? activeCategoryId : internalCategory;
+  const setSelectedCategory = (id: string) => {
+    setInternalCategory(id);
+    onSelectCategory?.(id);
+  };
   const [availabilityFilter, setAvailabilityFilter] = useState<"ALL" | "VACANT" | "INSTANT">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");

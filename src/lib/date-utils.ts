@@ -223,3 +223,19 @@ export function formatOrgTimeRange(
     return `${sDateBrief} ${startTimeStr} – ${eDateBrief} ${endTimeStr}`;
   }
 }
+
+/**
+ * Formats a Date or timestamp string into YYYY-MM-DD in the organization timezone (Asia/Colombo).
+ * e.g. "2026-10-15"
+ */
+export function formatOrgDateYYYYMMDD(date: Date | string | number): string {
+  const d = typeof date === "object" ? date : new Date(date);
+  if (isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: ORGANIZATION_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -16,9 +17,12 @@ import {
   CheckCircle2,
   Loader2,
   Globe,
+  X,
+  User,
 } from "lucide-react";
 import {
   formatOrgDate,
+  formatOrgDateYYYYMMDD,
   formatOrgTimeRange,
   ORGANIZATION_TIMEZONE,
 } from "@/lib/date-utils";
@@ -33,6 +37,11 @@ export type UserReservationItem = {
   status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "COMPLETED";
   rejectionReason: string | null;
   createdAt: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  };
   resource: {
     id: string;
     name: string;
@@ -45,9 +54,14 @@ export type UserReservationItem = {
 
 interface UserReservationsListProps {
   initialReservations: UserReservationItem[];
+  isAdmin?: boolean;
 }
 
-export function UserReservationsList({ initialReservations }: UserReservationsListProps) {
+export function UserReservationsList({ initialReservations, isAdmin = false }: UserReservationsListProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const dateParam = searchParams.get("date"); // e.g. "2026-10-15"
+
   const [filter, setFilter] = useState<string>("ALL");
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
@@ -72,6 +86,14 @@ export function UserReservationsList({ initialReservations }: UserReservationsLi
   };
 
   const filtered = initialReservations.filter((res) => {
+    // If a date filter is passed from calendar click, check date match
+    if (dateParam) {
+      const resDateStr = formatOrgDateYYYYMMDD(res.startTime);
+      if (resDateStr !== dateParam) {
+        return false;
+      }
+    }
+
     if (filter === "ALL") return true;
     if (filter === "UPCOMING") {
       return (
@@ -130,6 +152,38 @@ export function UserReservationsList({ initialReservations }: UserReservationsLi
         </span>
       </div>
 
+      {/* Date Filter Active Banner */}
+      {dateParam && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-xs text-emerald-800 dark:text-emerald-300">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>
+              Showing reservations for:{" "}
+              <strong className="font-bold underline">
+                {formatOrgDate(new Date(`${dateParam}T00:00:00+05:30`), {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </strong>
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 font-bold text-[10px]">
+              {filtered.length} booking{filtered.length === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => router.push("/reservations")}
+            className="inline-flex items-center gap-1 font-bold text-xs hover:text-emerald-950 dark:hover:text-white transition-colors cursor-pointer self-start sm:self-auto"
+          >
+            <X className="h-3.5 w-3.5" />
+            <span>Clear date filter</span>
+          </button>
+        </div>
+      )}
+
       {/* Filter Tabs */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border/60 pb-3">
         {[
@@ -142,7 +196,7 @@ export function UserReservationsList({ initialReservations }: UserReservationsLi
           <button
             key={tab.key}
             onClick={() => setFilter(tab.key)}
-            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${
               filter === tab.key
                 ? "bg-foreground text-background font-semibold shadow-xs"
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
@@ -193,6 +247,15 @@ export function UserReservationsList({ initialReservations }: UserReservationsLi
                           <span className="flex items-center gap-1">
                             <MapPin className="h-3 w-3" />
                             {item.resource.location}
+                          </span>
+                        </>
+                      )}
+                      {item.user && (
+                        <>
+                          <span>•</span>
+                          <span className="flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-400">
+                            <User className="h-3 w-3" />
+                            {item.user.name}
                           </span>
                         </>
                       )}

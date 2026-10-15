@@ -25,10 +25,12 @@ import { toast } from "sonner";
 import { ChangePasswordModal } from "@/components/change-password-modal";
 import { SupportModal } from "@/components/support-modal";
 import { LottiePlayer } from "@/components/ui/lottie-player";
+import { NotificationsPopover } from "@/components/notifications-popover";
 
 interface DashboardShellProps {
   currentUser: SafeUser | null;
   pendingCount?: number;
+  unreadNotificationCount?: number;
   children: ReactNode;
 }
 
@@ -41,11 +43,13 @@ function getInitials(name: string) {
 export function DashboardShell({
   currentUser,
   pendingCount = 0,
+  unreadNotificationCount = 0,
   children,
 }: DashboardShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [liveUnreadCount, setLiveUnreadCount] = useState(unreadNotificationCount);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
   const [supportModalOpen, setSupportModalOpen] = useState(false);
@@ -66,6 +70,22 @@ export function DashboardShell({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [dropdownOpen]);
+
+  useEffect(() => {
+    setLiveUnreadCount(unreadNotificationCount);
+  }, [unreadNotificationCount]);
+
+  useEffect(() => {
+    const handleCountChange = (e: any) => {
+      if (typeof e.detail?.count === "number") {
+        setLiveUnreadCount(e.detail.count);
+      }
+    };
+    window.addEventListener("notifications-count-change", handleCountChange);
+    return () => {
+      window.removeEventListener("notifications-count-change", handleCountChange);
+    };
+  }, []);
 
   const handleRoleSwitch = (personaKey: "INTERN" | "ADMIN", roleName: string) => {
     startTransition(async () => {
@@ -91,7 +111,7 @@ export function DashboardShell({
   const isLoginPage = pathname === "/login";
   if (isLoginPage) {
     return (
-      <div className="min-h-screen w-full bg-[#f0f3f8] dark:bg-[#0c1017] p-4 sm:p-6 lg:p-8 flex items-center justify-center">
+      <div className="relative h-full w-full overflow-y-auto bg-[#f0f3f8] dark:bg-[#0c1017] p-4 sm:p-6 lg:p-8 flex items-center justify-center">
         {children}
       </div>
     );
@@ -106,6 +126,9 @@ export function DashboardShell({
   } else if (pathname.startsWith("/reservations")) {
     pageTitle = "Personal Reservations";
     pageSubtitle = "Your active bookings & scheduled ledger";
+  } else if (pathname.startsWith("/notifications")) {
+    pageTitle = "Notifications Hub";
+    pageSubtitle = "Real-time alerts, approval decisions & campus broadcasts";
   }
 
   return (
@@ -172,6 +195,27 @@ export function DashboardShell({
                 <CalendarDays className="h-4 w-4" />
                 <span>Reservations</span>
               </div>
+            </Link>
+
+            {/* Notifications Tab */}
+            <Link
+              href="/notifications"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition-all ${
+                pathname.startsWith("/notifications")
+                  ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 font-bold border-l-[3.5px] border-emerald-600 pl-3 shadow-2xs"
+                  : "font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Bell className="h-4 w-4" />
+                <span>Notifications</span>
+              </div>
+              {liveUnreadCount > 0 && (
+                <span className="h-4.5 px-2 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center shadow-xs">
+                  {liveUnreadCount > 99 ? "99+" : liveUnreadCount}
+                </span>
+              )}
             </Link>
 
             {/* Admin Hub Link (Visible for Admin) */}
@@ -303,22 +347,8 @@ export function DashboardShell({
               <Mail className="h-4 w-4" />
             </button>
 
-            {/* Notification Bell with Badge */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => router.push(currentUser?.role === "ADMIN" ? "/admin" : "/reservations")}
-                className="h-8.5 w-8.5 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                title={pendingCount > 0 ? `${pendingCount} reviews pending` : "Notifications"}
-              >
-                <Bell className="h-4 w-4" />
-              </button>
-              {pendingCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-bold text-white shadow-xs">
-                  {pendingCount}
-                </span>
-              )}
-            </div>
+            {/* Interactive Real-Time Notification Center */}
+            <NotificationsPopover currentUser={currentUser} />
 
             {/* User Avatar with Profile Dropdown */}
             {currentUser ? (

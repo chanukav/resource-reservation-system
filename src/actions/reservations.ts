@@ -19,6 +19,10 @@ import {
   formatZodError,
   sanitizeServerError,
 } from "@/lib/validations";
+import {
+  createAndDispatchNotification,
+  dispatchNotificationToAdmins,
+} from "@/lib/notifications";
 
 function safeRevalidatePath(path: string) {
   try {
@@ -172,6 +176,16 @@ export async function createReservationAction(formData: CreateReservationInput):
     safeRevalidatePath("/");
     safeRevalidatePath("/reservations");
     safeRevalidatePath("/admin");
+
+    // Real-time notification: If resource requires admin approval, notify administrators
+    if (resource.requiresApproval) {
+      await dispatchNotificationToAdmins({
+        title: "New Reservation Needs Review",
+        message: `${user.name} submitted a booking request for "${resource.name}" ("${title.trim()}"). Pending approval.`,
+        type: "BOOKING_CREATED",
+        reservationId: reservation.id,
+      });
+    }
 
     return {
       success: true,
@@ -508,6 +522,28 @@ export async function updateReservationStatusAction({
     safeRevalidatePath("/");
     safeRevalidatePath("/reservations");
     safeRevalidatePath("/admin");
+
+    // Real-time notification: Dispatch approval or rejection notification to the reservation owner
+    if (validatedData.status === ReservationStatus.APPROVED) {
+      await createAndDispatchNotification({
+        userId: targetReservation.userId,
+        title: "Reservation Approved 🎉",
+        message: `Your booking for "${targetReservation.resource.name}" ("${targetReservation.title}") has been approved by Administrator ${user.name}.`,
+        type: "APPROVAL",
+        reservationId: targetReservation.id,
+      });
+    } else if (validatedData.status === ReservationStatus.REJECTED) {
+      const reasonSuffix = validatedData.rejectionReason
+        ? ` Reason: "${validatedData.rejectionReason.trim()}".`
+        : "";
+      await createAndDispatchNotification({
+        userId: targetReservation.userId,
+        title: "Reservation Declined",
+        message: `Your booking request for "${targetReservation.resource.name}" was declined by Administrator ${user.name}.${reasonSuffix}`,
+        type: "REJECTION",
+        reservationId: targetReservation.id,
+      });
+    }
 
     return {
       success: true,

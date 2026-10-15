@@ -1,7 +1,8 @@
+import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { UserReservationsList, UserReservationItem } from "@/components/user-reservations-list";
-
+import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { redirect } from "next/navigation";
@@ -13,9 +14,18 @@ export default async function MyReservationsPage() {
     redirect("/login?redirect=/reservations");
   }
 
+  const isAdmin = currentUser.role === "ADMIN";
+
   const rawReservations = await prisma.reservation.findMany({
-    where: { userId: currentUser.id },
+    where: isAdmin ? {} : { userId: currentUser.id },
     include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
       resource: {
         select: {
           id: true,
@@ -39,6 +49,7 @@ export default async function MyReservationsPage() {
     status: r.status,
     rejectionReason: r.rejectionReason,
     createdAt: r.createdAt.toISOString(),
+    user: r.user,
     resource: r.resource,
   }));
 
@@ -48,10 +59,12 @@ export default async function MyReservationsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-1 border-b border-border/60">
         <div className="flex items-center gap-2">
           <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/70 border border-border/70 px-2.5 py-0.5 rounded-full">
-            DISPATCH // LEDGER
+            {isAdmin ? "ADMIN // DISPATCH LEDGER" : "DISPATCH // LEDGER"}
           </span>
           <span className="text-xs text-muted-foreground font-medium">
-            Personal scheduled bookings, pending approvals & dispatch history
+            {isAdmin
+              ? "All organizational scheduled bookings, approval statuses & equipment logs"
+              : "Personal scheduled bookings, pending approvals & dispatch history"}
           </span>
         </div>
 
@@ -62,7 +75,15 @@ export default async function MyReservationsPage() {
         </Link>
       </div>
 
-      <UserReservationsList initialReservations={serializedReservations} />
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center p-12">
+            <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+          </div>
+        }
+      >
+        <UserReservationsList initialReservations={serializedReservations} isAdmin={isAdmin} />
+      </Suspense>
     </div>
   );
 }

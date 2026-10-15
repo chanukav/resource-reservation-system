@@ -56,6 +56,7 @@ import {
   EyeOff,
   Check,
   Sparkles,
+  RadioTower,
 } from "lucide-react";
 import { ResourceStatus, ReservationStatus } from "@prisma/client";
 import {
@@ -63,6 +64,7 @@ import {
   formatOrgTimeRange,
 } from "@/lib/date-utils";
 import { StatProgressCard } from "@/components/stat-progress-card";
+import { BroadcastNotificationModal } from "@/components/broadcast-notification-modal";
 
 export type AdminReservationItem = {
   id: string;
@@ -141,6 +143,9 @@ export function AdminDashboard({
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedResId, setSelectedResId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+
+  // Broadcast modal state
+  const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
 
   // New resource modal state
   const [newResourceOpen, setNewResourceOpen] = useState(false);
@@ -441,8 +446,21 @@ export function AdminDashboard({
           </button>
         </div>
 
-        {/* Action button for active tab */}
-        {activeTab === "RESOURCES" && (
+        <div className="flex items-center gap-2">
+          {/* Targeted Broadcast Alert Action via Redis Pub/Sub */}
+          <Button
+            size="sm"
+            type="button"
+            onClick={() => setBroadcastModalOpen(true)}
+            className="h-8 text-xs bg-emerald-700/90 hover:bg-emerald-700 text-white rounded-full font-semibold cursor-pointer shadow-xs"
+            title="Dispatch Real-Time Broadcast Alert via Redis Pub/Sub"
+          >
+            <RadioTower className="h-3.5 w-3.5 mr-1" />
+            Broadcast Alert
+          </Button>
+
+          {/* Action button for active tab */}
+          {activeTab === "RESOURCES" && (
           <Dialog open={newResourceOpen} onOpenChange={setNewResourceOpen}>
             <DialogTrigger
               render={
@@ -663,6 +681,7 @@ export function AdminDashboard({
             </DialogContent>
           </Dialog>
         )}
+        </div>
       </div>
 
       {/* TAB 1: PENDING RESERVATIONS */}
@@ -1232,6 +1251,12 @@ export function AdminDashboard({
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Real-Time Targeted Broadcast Alert Modal */}
+      <BroadcastNotificationModal
+        open={broadcastModalOpen}
+        onOpenChange={setBroadcastModalOpen}
+      />
     </div>
   );
 }

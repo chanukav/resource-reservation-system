@@ -42,11 +42,16 @@ const suites: SuiteRun[] = [
     file: "tests/authorization.test.ts",
     description: "Exhaustive route and Server Action matrix for ADMIN, USER, and UNAUTHENTICATED callers",
   },
+  {
+    name: "Real-Time Notifications & Approvals",
+    file: "tests/notifications.test.ts",
+    description: "Real-time SSE event dispatch, persistent inboxes, read receipts, and admin approval/rejection triggers",
+  },
 ];
 
 console.log("\n" + "=".repeat(85));
 console.log("  🚀 PRIME-WAVE RESERVE: MASTER TEST ORCHESTRATION PIPELINE");
-console.log("  Running 5 independent test suites against live PostgreSQL with GiST constraint");
+console.log("  Running 6 independent test suites against live PostgreSQL with GiST constraint");
 console.log("=".repeat(85) + "\n");
 
 const startTime = Date.now();

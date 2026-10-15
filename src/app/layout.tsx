@@ -29,13 +29,19 @@ export default async function RootLayout({
 }) {
   let currentUser = null;
   let pendingCount = 0;
+  let unreadNotificationCount = 0;
 
   try {
     currentUser = await getCurrentUser();
-    if (currentUser?.role === "ADMIN") {
-      pendingCount = await prisma.reservation.count({
-        where: { status: "PENDING" },
+    if (currentUser) {
+      unreadNotificationCount = await prisma.notification.count({
+        where: { userId: currentUser.id, isRead: false },
       });
+      if (currentUser.role === "ADMIN") {
+        pendingCount = await prisma.reservation.count({
+          where: { status: "PENDING" },
+        });
+      }
     }
   } catch (error) {
     console.error("Layout initialization error:", error);
@@ -47,7 +53,11 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-full overflow-hidden bg-[#f0f3f8] dark:bg-[#0c1017] text-foreground font-sans">
-        <DashboardShell currentUser={currentUser} pendingCount={pendingCount}>
+        <DashboardShell
+          currentUser={currentUser}
+          pendingCount={pendingCount}
+          unreadNotificationCount={unreadNotificationCount}
+        >
           {children}
         </DashboardShell>
         <Toaster position="bottom-right" richColors />
