@@ -57,6 +57,12 @@ import {
   Check,
   Sparkles,
   RadioTower,
+  Building2,
+  Cpu,
+  Video,
+  Laptop,
+  Layers,
+  Activity,
 } from "lucide-react";
 import { ResourceStatus, ReservationStatus } from "@prisma/client";
 import {
@@ -125,6 +131,50 @@ interface AdminDashboardProps {
   categories: { id: string; name: string }[];
   users?: AdminUserItem[];
   currentAdminId?: string;
+}
+
+function getAssetCode(categoryName: string, id: string) {
+  let prefix = "AST";
+  const lower = categoryName.toLowerCase();
+  if (lower.includes("conference") || lower.includes("meeting")) prefix = "CR";
+  else if (lower.includes("workstation") || lower.includes("lab")) prefix = "WS";
+  else if (lower.includes("media") || lower.includes("production") || lower.includes("hardware") || lower.includes("equipment")) prefix = "EQ";
+  else if (lower.includes("training") || lower.includes("workshop") || lower.includes("collaboration")) prefix = "TR";
+  else if (lower.includes("presentation") || lower.includes("shared it") || lower.includes("it")) prefix = "IT";
+  const num = Math.abs(id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 900) + 100;
+  return `${prefix}-${num}`;
+}
+
+function getCategoryVisual(name: string) {
+  const l = name.toLowerCase();
+  if (l.includes("conference") || l.includes("meeting")) {
+    return {
+      icon: <Building2 className="h-3 w-3" />,
+      color: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
+    };
+  }
+  if (l.includes("workstation") || l.includes("lab")) {
+    return {
+      icon: <Cpu className="h-3 w-3" />,
+      color: "bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-500/20",
+    };
+  }
+  if (l.includes("media") || l.includes("production") || l.includes("hardware") || l.includes("equipment")) {
+    return {
+      icon: <Video className="h-3 w-3" />,
+      color: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20",
+    };
+  }
+  if (l.includes("training") || l.includes("workshop") || l.includes("collaboration")) {
+    return {
+      icon: <Layers className="h-3 w-3" />,
+      color: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20",
+    };
+  }
+  return {
+    icon: <Laptop className="h-3 w-3" />,
+    color: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
+  };
 }
 
 export function AdminDashboard({
@@ -820,56 +870,141 @@ export function AdminDashboard({
 
       {/* TAB 3: MANAGE RESOURCES */}
       {activeTab === "RESOURCES" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {resources.map((res) => (
-            <Card key={res.id} className="border-border/80 shadow-xs flex flex-col justify-between">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-2">
-                  <Badge variant="outline" className="text-[11px]">
-                    {res.category.name}
-                  </Badge>
-                  <Select
-                    value={res.status}
-                    onValueChange={(val) => val && handleStatusChange(res.id, val as ResourceStatus)}
-                  >
-                    <SelectTrigger className="h-7 text-xs w-36">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="AVAILABLE" className="text-xs text-emerald-600">Operational (Ready)</SelectItem>
-                      <SelectItem value="MAINTENANCE" className="text-xs text-amber-600">In Maintenance</SelectItem>
-                      <SelectItem value="DECOMMISSIONED" className="text-xs text-destructive">Decommissioned</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <CardTitle className="text-base font-semibold text-foreground mt-2">{res.name}</CardTitle>
-                  {res.description && (
-                    <CardDescription className="text-xs mt-1 line-clamp-2">
-                      {res.description}
-                    </CardDescription>
-                  )}
-                </div>
-              </CardHeader>
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Managed Asset Fleet</h3>
+              <p className="text-xs text-muted-foreground">
+                Control operational statuses, inspect booking demand, and configure dispatch approval rules.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">{resources.length}</span> assets registered
+            </div>
+          </div>
 
-              <CardContent className="pt-0 text-xs text-muted-foreground space-y-2 border-t border-border/50 py-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5" />
-                    <span>{res.location || "No location set"}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Users className="h-3.5 w-3.5" />
-                    <span>Capacity: {res.capacity}</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between text-[11px] pt-1">
-                  <span>Lifetime bookings: {res._count.reservations}</span>
-                  <span>{res.requiresApproval ? "Approval required" : "Auto-approves"}</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {resources.map((res) => {
+              const assetCode = getAssetCode(res.category.name, res.id);
+              const catVisual = getCategoryVisual(res.category.name);
+              const isAvailable = res.status === "AVAILABLE";
+              const isMaintenance = res.status === "MAINTENANCE";
+
+              return (
+                <Card
+                  key={res.id}
+                  className="rounded-3xl border border-border/80 bg-white dark:bg-card shadow-xs hover:border-emerald-500/40 hover:shadow-lg transition-all duration-200 overflow-hidden group flex flex-col justify-between"
+                >
+                  <CardHeader className="p-5 pb-3 space-y-3">
+                    {/* Top Row: Asset Code & Category Pill + Status Selector */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono text-[10px] font-bold text-muted-foreground bg-muted/80 border border-border/60 px-2 py-0.5 rounded-md">
+                          {assetCode}
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${catVisual.color}`}
+                        >
+                          {catVisual.icon}
+                          <span className="truncate max-w-[130px]">{res.category.name}</span>
+                        </span>
+                      </div>
+
+                      <div className="shrink-0">
+                        <Select
+                          value={res.status}
+                          onValueChange={(val) => val && handleStatusChange(res.id, val as ResourceStatus)}
+                        >
+                          <SelectTrigger
+                            className={`h-7 text-[11px] font-bold rounded-full px-2.5 transition-colors border ${
+                              isAvailable
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+                                : isMaintenance
+                                ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
+                                : "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30 hover:bg-rose-500/20"
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  isAvailable ? "bg-emerald-500 animate-pulse" : isMaintenance ? "bg-amber-500" : "bg-rose-500"
+                                }`}
+                              />
+                              <SelectValue />
+                            </span>
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl text-xs">
+                            <SelectItem value="AVAILABLE" className="text-xs text-emerald-600 font-medium">
+                              Operational (Ready)
+                            </SelectItem>
+                            <SelectItem value="MAINTENANCE" className="text-xs text-amber-600 font-medium">
+                              In Maintenance
+                            </SelectItem>
+                            <SelectItem value="DECOMMISSIONED" className="text-xs text-destructive font-medium">
+                              Decommissioned
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Title & Description */}
+                    <div>
+                      <CardTitle className="text-base font-bold text-foreground tracking-tight group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                        {res.name}
+                      </CardTitle>
+                      {res.description && (
+                        <CardDescription className="text-xs mt-1.5 line-clamp-2 leading-relaxed text-muted-foreground">
+                          {res.description}
+                        </CardDescription>
+                      )}
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="p-5 pt-0 space-y-3">
+                    {/* Metadata Specs Grid */}
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-border/50">
+                      <div className="flex items-center gap-1.5 text-muted-foreground bg-muted/30 border border-border/40 px-2.5 py-1.5 rounded-xl">
+                        <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <span className="truncate font-medium text-foreground/80 text-[11px]">
+                          {res.location || "No location set"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 text-muted-foreground bg-muted/30 border border-border/40 px-2.5 py-1.5 rounded-xl">
+                        <Users className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <span className="truncate font-medium text-foreground/80 text-[11px]">
+                          {res.capacity} {res.capacity > 1 ? "persons" : "unit"} max
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Dispatch Policy & Demand Banner */}
+                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/40">
+                      <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                        <Activity className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>
+                          Lifetime bookings: <strong className="text-foreground">{res._count.reservations}</strong>
+                        </span>
+                      </div>
+
+                      {res.requiresApproval ? (
+                        <span className="inline-flex items-center gap-1 font-semibold text-[10px] text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full">
+                          <ShieldCheck className="h-3 w-3" />
+                          Approval required
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 font-semibold text-[10px] text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                          <Sparkles className="h-3 w-3" />
+                          Auto-approves
+                        </span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </div>
       )}
 
